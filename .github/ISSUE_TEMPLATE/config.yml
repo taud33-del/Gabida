@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Discussions — Questions & Ideas
+    url: https://github.com/gabida/moteur/discussions
+    about: For open-ended questions, general exploration, and early-stage ideas, GitHub Discussions is the right place to start.
+
+  - name: Contributing Guide
+    url: https://github.com/gabida/moteur/blob/main/CONTRIBUTING.md
+    about: Read the contributing guide before opening a pull request.
+
+  - name: Developer Guide
+    url: https://github.com/gabida/moteur/blob/main/DEVELOPER_GUIDE.md
+    about: Read the developer guide before modifying or extending the engine.

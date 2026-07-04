@@ -1,0 +1,16 @@
+{
+  "name": "gabida-moteur",
+  "version": "1.0.0",
+  "description": "Moteur Gabida — architecture universelle",
+  "type": "module",
+  "scripts": {
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "transform": {}
+  }
+}
