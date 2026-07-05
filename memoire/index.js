@@ -390,3 +390,25 @@ export function updateMemory(evenement, decision, reponseIA, fiches, etat) {
 
   return assemblerMiseAJour(ctx, conserves, oublies, candidats)
 }
+
+/**
+ * appliquerMiseAJour(miseAJourMemoire)
+ *
+ * Aucune logique metier. Construit la nouvelle MemoireVecue en appliquant un
+ * MiseAJourMemoire deja calcule par updateMemory : les souvenirs conserves et
+ * les souvenirs ajoutes sont fusionnes puis tries par importance decroissante.
+ * Les oublies ont deja ete exclus en amont ; ils ne sont pas reinjectes ici.
+ *
+ * Pure et deterministe : aucune mutation des entrees, aucun effet de bord.
+ *
+ * @param {import('./types.js').MiseAJourMemoire} miseAJourMemoire
+ * @returns {import('./types.js').MemoireVecue}
+ */
+export function appliquerMiseAJour(miseAJourMemoire) {
+  const souvenirs = [
+    ...miseAJourMemoire.conserves,
+    ...miseAJourMemoire.ajoutes,
+  ].sort((a, b) => b.importance - a.importance)
+
+  return { souvenirs }
+}
