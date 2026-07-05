@@ -20,6 +20,9 @@ import {
   registerProvider,
   callProvider,
   getProviders,
+  ProviderAlreadyRegisteredError,
+  ProviderNotFoundError,
+  InvalidProviderError,
 } from './index.js'
 
 import { PROVIDERS }             from '../constants/Providers.js'
@@ -187,18 +190,20 @@ describe('registerProvider', () => {
     }).not.toThrow()
   })
 
-  test('leve une erreur si l adaptateur n est pas une fonction', () => {
+  test('leve InvalidProviderError si l adaptateur n est pas une fonction', () => {
     expect(() => {
       registerProvider('mauvais', 'pas-une-fonction')
-    }).toThrow('doit etre une fonction')
+    }).toThrow(InvalidProviderError)
   })
 
-  test('ecrase silencieusement un provider existant', () => {
+  test('leve ProviderAlreadyRegisteredError si le nom existe deja (aucun ecrasement)', () => {
     const adaptateur1 = async () => ({ texte: 'v1', tokensEntree: 1, tokensSortie: 1 })
     const adaptateur2 = async () => ({ texte: 'v2', tokensEntree: 2, tokensSortie: 2 })
-    registerProvider('overwrite-test', adaptateur1)
-    registerProvider('overwrite-test', adaptateur2)
-    expect(getProviders()).toContain('overwrite-test')
+    registerProvider('duplicate-test', adaptateur1)
+    expect(() => {
+      registerProvider('duplicate-test', adaptateur2)
+    }).toThrow(ProviderAlreadyRegisteredError)
+    expect(getProviders()).toContain('duplicate-test')
   })
 })
 
@@ -242,11 +247,9 @@ describe('callProvider', () => {
     expect(promptVide).toEqual(promptAvant)
   })
 
-  test('leve une erreur explicite si le provider n est pas enregistre', async () => {
+  test('leve ProviderNotFoundError si le provider n est pas enregistre', async () => {
     const config = { ...configMock, provider: 'provider-inexistant' }
-    await expect(callProvider(promptVide, config)).rejects.toThrow(
-      'provider "provider-inexistant" non enregistre'
-    )
+    await expect(callProvider(promptVide, config)).rejects.toThrow(ProviderNotFoundError)
   })
 
   test('transmet l instruction comme dernier message user a l adaptateur', async () => {
