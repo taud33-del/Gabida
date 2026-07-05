@@ -5,6 +5,16 @@
  * Consommé par : prompt, memoire
  *
  * Aucune logique. Aucune dépendance. Aucune connaissance des modules.
+ *
+ * IMPORTANT (Sprint 24) : objectifImmediat / attitude / directionNarrative sont
+ * des IDENTIFIANTS stables issus des constantes du moteur — jamais du langage
+ * naturel. La mise en langage appartient exclusivement au module prompt/
+ * (séparation cognition ↔ langage, Axiome 17).
+ *
+ * Constantes utilisées :
+ *   - OBJECTIFS             (constants/Objectifs.js)             → Decision.objectifImmediat
+ *   - ATTITUDES             (constants/Attitudes.js)             → Decision.attitude
+ *   - DIRECTIONS_NARRATIVES (constants/DirectionsNarratives.js)  → Decision.directionNarrative
  */
 
 /**
@@ -24,8 +34,8 @@
  *   Tableau non vide — au moins un axiome s'applique toujours.
  *
  * @property {string} explication
- *   [obligatoire] Résumé lisible en langage naturel du raisonnement.
- *   Doit expliquer pourquoi cette décision a été prise, pas comment elle a été calculée.
+ *   [obligatoire] Trace lisible du raisonnement, destinée à l'audit/debug — jamais au LLM.
+ *   Résume les identifiants retenus, les critères actifs et les axiomes appliqués.
  *   Ne doit jamais être vide.
  */
 
@@ -41,18 +51,18 @@
  *
  * @property {string} objectifImmediat
  *   [obligatoire] Ce que le personnage cherche à accomplir ce tour.
- *   Formulé en langage naturel. Ne décrit pas une action mais une intention.
- *   Exemple : "Regagner la confiance du joueur" ou "Maintenir une distance prudente".
+ *   Identifiant stable issu de OBJECTIFS — décrit une intention, pas une action.
+ *   Voir constants/Objectifs.js. Exemple : OBJECTIFS.RENFORCER_RELATION ('renforcer_relation').
  *
  * @property {string} attitude
  *   [obligatoire] Manière d'être adoptée pour ce tour : ton, posture, degré d'ouverture.
- *   Formulé en langage naturel. Transmis tel quel au module prompt.
- *   Exemple : "Chaleureux mais avec une réserve perceptible".
+ *   Identifiant stable issu de ATTITUDES, transmis tel quel au module prompt.
+ *   Voir constants/Attitudes.js. Exemple : ATTITUDES.RESERVEE ('reservee').
  *
  * @property {string} directionNarrative
  *   [obligatoire] Orientation choisie pour faire progresser l'aventure naturellement.
- *   Ne dicte pas le texte de la réponse — oriente seulement la dynamique narrative.
- *   Exemple : "Introduire un élément de passé" ou "Laisser le joueur faire le prochain pas".
+ *   Identifiant stable issu de DIRECTIONS_NARRATIVES — oriente la dynamique, ne dicte pas le texte.
+ *   Voir constants/DirectionsNarratives.js. Exemple : DIRECTIONS_NARRATIVES.LAISSER_INITIATIVE ('laisser_initiative').
  *
  * @property {Justification} justification
  *   [obligatoire] Trace complète des critères et axiomes ayant conduit à cette décision.
