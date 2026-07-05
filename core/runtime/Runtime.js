@@ -67,6 +67,22 @@
  * vide le conteneur (services.clear() → dispose de chaque descripteur), en meme
  * temps qu'il libere les modules.
  *
+ * ─── Execution d'un pipeline (Sprint 15) ─────────────────────────────────
+ *
+ * Le Runtime peut posseder un Pipeline (injecte au constructeur, comme les
+ * autres dependances d'infrastructure) et l'executer sur un Context via
+ * execute(context). Le Runtime ne connait aucun stage concret : il delegue
+ * entierement l'execution ordonnee au Pipeline, qui ne mute jamais le Context.
+ *
+ * execute(context) n'est autorise qu'a l'etat RUNNING. Il valide le pipeline
+ * (InvalidPipelineError si absent/invalide) puis le context (InvalidContextError
+ * si ce n'est pas une instance de Context), execute pipeline.execute(context)
+ * et retourne le Context resultant. Toute exception d'un stage est encapsulee
+ * dans une RuntimeExecutionError (portant l'erreur d'origine, un snapshot gele
+ * du Context et un snapshot du pipeline), emise via RUNTIME_EVENTS.ERROR puis
+ * propagee. Le Runtime ne mute jamais le Context : le determinisme et
+ * l'immutabilite sont preserves.
+ *
  * ─── Gestion des erreurs ────────────────────────────────────────────────────
  *
  * Si initializeAll()/startAll() (au demarrage) ou stopAll()/disposeAll() (a
@@ -86,6 +102,14 @@ import { ModuleRegistry } from '../modules/ModuleRegistry.js'
 import { ModuleManager } from '../modules/ModuleManager.js'
 import { EventBus } from '../events/EventBus.js'
 import { ServiceRegistry } from '../registry/ServiceRegistry.js'
+import { Pipeline } from '../pipeline/Pipeline.js'
+import { Context } from '../context/Context.js'
+import {
+  RuntimeError,
+  InvalidPipelineError,
+  InvalidContextError,
+  RuntimeExecutionError,
+} from './RuntimeError.js'
 
 export { ErreurTransitionRuntime }
 
@@ -100,8 +124,11 @@ export class Runtime {
    *   Bus d'evenements de cycle de vie. Par defaut, un bus dedie.
    * @param {ServiceRegistry} [options.services]
    *   Conteneur de services. Par defaut, un conteneur vide.
+   * @param {Pipeline} [options.pipeline]
+   *   Pipeline execute par execute(). Par defaut, aucun (execute() leve alors
+   *   InvalidPipelineError).
    */
-  constructor({ registry, eventBus, services } = {}) {
+  constructor({ registry, eventBus, services, pipeline } = {}) {
     /** @type {RuntimeState} */
     this._state = new RuntimeState()
     /** @type {ModuleRegistry} */
@@ -112,6 +139,8 @@ export class Runtime {
     this._eventBus = eventBus ?? new EventBus()
     /** @type {ServiceRegistry} */
     this._services = services ?? new ServiceRegistry()
+    /** @type {Pipeline|null} */
+    this._pipeline = pipeline ?? null
   }
 
   // ─── Accesseurs ──────────────────────────────────────────────────────────────
@@ -134,6 +163,15 @@ export class Runtime {
    */
   get services() {
     return this._services
+  }
+
+  /**
+   * Pipeline execute par le runtime, ou null si aucun n'a ete injecte.
+   *
+   * @returns {Pipeline|null}
+   */
+  get pipeline() {
+    return this._pipeline
   }
 
   // ─── API publique ────────────────────────────────────────────────────────────
@@ -223,5 +261,49 @@ export class Runtime {
    */
   getState() {
     return this._state.current
+  }
+
+  // ─── Execution ───────────────────────────────────────────────────────────────
+
+  /**
+   * Execute le pipeline du runtime sur un Context et retourne le Context final.
+   *
+   * Autorise uniquement a l'etat RUNNING. Le Runtime ne connait aucun stage :
+   * il delegue l'execution ordonnee au Pipeline et ne mute jamais le Context.
+   *
+   * En cas d'echec d'un stage, emet RUNTIME_EVENTS.ERROR avec une
+   * RuntimeExecutionError (erreur d'origine + snapshot du Context + snapshot du
+   * pipeline), puis la propage.
+   *
+   * @param {Context} context
+   * @returns {Promise<Context>}
+   * @throws {RuntimeError}           -- si le runtime n'est pas a l'etat RUNNING
+   * @throws {InvalidPipelineError}   -- si aucun pipeline valide n'est disponible
+   * @throws {InvalidContextError}    -- si context n'est pas une instance de Context
+   * @throws {RuntimeExecutionError}  -- si un stage echoue pendant l'execution
+   */
+  async execute(context) {
+    if (this._state.current !== RUNTIME_STATES.RUNNING) {
+      throw new RuntimeError(
+        `execute() n'est autorise qu'a l'etat RUNNING (etat courant : ${this._state.current}).`,
+      )
+    }
+
+    if (!(this._pipeline instanceof Pipeline)) {
+      throw new InvalidPipelineError('aucun pipeline disponible', this._pipeline)
+    }
+
+    if (!(context instanceof Context)) {
+      throw new InvalidContextError('execute() requiert une instance de Context', context)
+    }
+
+    try {
+      return await this._pipeline.execute(context)
+    } catch (cause) {
+      const pipelineSnapshot = { stages: this._pipeline.getAll().map(stage => stage.name) }
+      const erreur = new RuntimeExecutionError(cause, context.snapshot(), pipelineSnapshot)
+      this._eventBus.emit(RUNTIME_EVENTS.ERROR, erreur)
+      throw erreur
+    }
   }
 }

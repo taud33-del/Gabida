@@ -18,6 +18,12 @@ import { Runtime, ErreurTransitionRuntime } from '../Runtime.js'
 import { RuntimeState }                     from '../RuntimeState.js'
 import { RUNTIME_EVENTS }                   from '../RuntimeEvents.js'
 import { isTransitionAllowed, getAllowedTransitions } from '../RuntimeLifecycle.js'
+import {
+  RuntimeError,
+  InvalidPipelineError,
+  InvalidContextError,
+  RuntimeExecutionError,
+}                                           from '../RuntimeError.js'
 import { RUNTIME_STATES }                   from '../../../constants/RuntimeStates.js'
 
 import { Module }               from '../../modules/Module.js'
@@ -27,6 +33,9 @@ import { MODULE_STATES }        from '../../modules/ModuleState.js'
 import { EventBus }             from '../../events/EventBus.js'
 import { ServiceRegistry }      from '../../registry/ServiceRegistry.js'
 import { REGISTRATION_TYPES }   from '../../registry/RegistrationTypes.js'
+import { PipelineBuilder }      from '../../pipeline/PipelineBuilder.js'
+import { PipelineStage }        from '../../pipeline/PipelineStage.js'
+import { Context }              from '../../context/Context.js'
 
 // ─── Modules de test ────────────────────────────────────────────────────────
 //
@@ -392,5 +401,96 @@ describe('Runtime — conteneur de services', () => {
   test('conteneur, modules et bus sont trois dependances distinctes', () => {
     const runtime = new Runtime()
     expect(runtime.services).not.toBe(runtime.events)
+  })
+})
+
+// ─── Runtime — execution de pipeline ────────────────────────────────────────
+
+/** Stage concret qui inscrit son nom dans une cle 'trace' du Context. */
+class TracingStage extends PipelineStage {
+  async execute(context) {
+    const trace = context.has('trace') ? context.get('trace') : []
+    return context.set('trace', [...trace, this.name])
+  }
+}
+
+/** Stage concret dont l'execution echoue toujours. */
+class FailingStage extends PipelineStage {
+  async execute() {
+    throw new Error('stage casse')
+  }
+}
+
+function makePipeline(...stages) {
+  const builder = new PipelineBuilder()
+  for (const stage of stages) builder.add(stage)
+  return builder.build()
+}
+
+describe('Runtime — execution de pipeline', () => {
+  test('expose le pipeline injecte via pipeline', () => {
+    const pipeline = makePipeline(new TracingStage('a'))
+    expect(new Runtime({ pipeline }).pipeline).toBe(pipeline)
+  })
+
+  test('pipeline vaut null par defaut', () => {
+    expect(new Runtime().pipeline).toBeNull()
+  })
+
+  test('execute() leve RuntimeError si le runtime n est pas RUNNING', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new TracingStage('a')) })
+    await expect(runtime.execute(new Context())).rejects.toBeInstanceOf(RuntimeError)
+  })
+
+  test('execute() leve InvalidPipelineError si aucun pipeline n est injecte', async () => {
+    const runtime = new Runtime()
+    await runtime.start()
+    await expect(runtime.execute(new Context())).rejects.toBeInstanceOf(InvalidPipelineError)
+  })
+
+  test('execute() leve InvalidContextError si le context est invalide', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new TracingStage('a')) })
+    await runtime.start()
+    await expect(runtime.execute({})).rejects.toBeInstanceOf(InvalidContextError)
+  })
+
+  test('execute() retourne le Context resultant du pipeline', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new TracingStage('a'), new TracingStage('b')) })
+    await runtime.start()
+    const result = await runtime.execute(new Context())
+    expect(result).toBeInstanceOf(Context)
+    expect(result.get('trace')).toEqual(['a', 'b'])
+  })
+
+  test('execute() ne mute pas le Context d entree', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new TracingStage('a')) })
+    await runtime.start()
+    const input = new Context()
+    await runtime.execute(input)
+    expect(input.has('trace')).toBe(false)
+  })
+
+  test('execute() encapsule un echec de stage dans RuntimeExecutionError', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new FailingStage('boom')) })
+    await runtime.start()
+    await expect(runtime.execute(new Context())).rejects.toBeInstanceOf(RuntimeExecutionError)
+  })
+
+  test('RuntimeExecutionError porte la cause et les snapshots', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new FailingStage('boom')) })
+    await runtime.start()
+    const erreur = await runtime.execute(new Context()).catch(e => e)
+    expect(erreur.cause).toBeDefined()
+    expect(erreur.contextSnapshot).toBeDefined()
+    expect(erreur.pipelineSnapshot).toEqual({ stages: ['boom'] })
+  })
+
+  test('execute() emet RUNTIME_EVENTS.ERROR sur echec de stage', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new FailingStage('boom')) })
+    await runtime.start()
+    let recu = null
+    runtime.events.subscribe(RUNTIME_EVENTS.ERROR, err => { recu = err })
+    await runtime.execute(new Context()).catch(() => {})
+    expect(recu).toBeInstanceOf(RuntimeExecutionError)
   })
 })
