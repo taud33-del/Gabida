@@ -54,6 +54,19 @@
  *   ERROR   : emis si une operation collective de modules echoue, avec l'erreur
  *             (ErreurModuleManager) en payload, avant sa propagation
  *
+ * ─── Conteneur de services (Sprint 14) ──────────────────────────────────────
+ *
+ * Le Runtime possede le ServiceRegistry, conteneur central de Gabida. Aucun
+ * composant n'instancie directement un autre composant : tout est obtenu via
+ * resolve(). En tant que composition root, le Runtime detient ce conteneur et
+ * l'expose en lecture via `runtime.services`. L'hote y enregistre ses services
+ * avant start() ; les modules les resolvent au besoin.
+ *
+ * Le Runtime ne resout aucun service lui-meme et n'en connait aucun nom : il ne
+ * fait que posseder le conteneur et gerer son cycle de vie. A l'arret, stop()
+ * vide le conteneur (services.clear() → dispose de chaque descripteur), en meme
+ * temps qu'il libere les modules.
+ *
  * ─── Gestion des erreurs ────────────────────────────────────────────────────
  *
  * Si initializeAll()/startAll() (au demarrage) ou stopAll()/disposeAll() (a
@@ -72,6 +85,7 @@ import { RUNTIME_EVENTS } from './RuntimeEvents.js'
 import { ModuleRegistry } from '../modules/ModuleRegistry.js'
 import { ModuleManager } from '../modules/ModuleManager.js'
 import { EventBus } from '../events/EventBus.js'
+import { ServiceRegistry } from '../registry/ServiceRegistry.js'
 
 export { ErreurTransitionRuntime }
 
@@ -84,8 +98,10 @@ export class Runtime {
    *   Registre des modules a piloter. Par defaut, un registre vide.
    * @param {EventBus} [options.eventBus]
    *   Bus d'evenements de cycle de vie. Par defaut, un bus dedie.
+   * @param {ServiceRegistry} [options.services]
+   *   Conteneur de services. Par defaut, un conteneur vide.
    */
-  constructor({ registry, eventBus } = {}) {
+  constructor({ registry, eventBus, services } = {}) {
     /** @type {RuntimeState} */
     this._state = new RuntimeState()
     /** @type {ModuleRegistry} */
@@ -94,6 +110,8 @@ export class Runtime {
     this._manager = new ModuleManager(this._registry)
     /** @type {EventBus} */
     this._eventBus = eventBus ?? new EventBus()
+    /** @type {ServiceRegistry} */
+    this._services = services ?? new ServiceRegistry()
   }
 
   // ─── Accesseurs ──────────────────────────────────────────────────────────────
@@ -106,6 +124,16 @@ export class Runtime {
    */
   get events() {
     return this._eventBus
+  }
+
+  /**
+   * Conteneur de services du runtime.
+   * Permet a l'hote d'enregistrer et aux modules de resoudre les services.
+   *
+   * @returns {ServiceRegistry}
+   */
+  get services() {
+    return this._services
   }
 
   // ─── API publique ────────────────────────────────────────────────────────────
@@ -134,9 +162,10 @@ export class Runtime {
   }
 
   /**
-   * Arrete le runtime et libere les ressources de ses modules.
+   * Arrete le runtime et libere ses ressources.
    * Transition : RUNNING → STOPPING → STOPPED
    * Modules    : stopAll() puis disposeAll().
+   * Services   : clear() (dispose de chaque descripteur).
    * Emet RUNTIME_EVENTS.STOPPED une fois en STOPPED.
    *
    * @returns {Promise<void>}
@@ -148,6 +177,7 @@ export class Runtime {
     try {
       await this._manager.stopAll()
       await this._manager.disposeAll()
+      this._services.clear()
     } catch (err) {
       this._eventBus.emit(RUNTIME_EVENTS.ERROR, err)
       throw err
