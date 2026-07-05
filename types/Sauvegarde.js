@@ -87,7 +87,7 @@
  *
  * @property {true}   success    -- Toujours true (une erreur levee sinon).
  * @property {string} sessionId  -- Identifiant de la session sauvegardee.
- * @property {number} timestamp  -- Horodatage de l'operation.
+ * @property {number} savedAt    -- Horodatage Unix (ms) de l'ecriture.
  * @property {string} formatVersion  -- Version du format utilise.
  */
 
