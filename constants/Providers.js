@@ -13,9 +13,10 @@
  */
 
 export const PROVIDERS = Object.freeze({
-  OPENAI    : 'openai',
-  ANTHROPIC : 'anthropic',
-  GEMINI    : 'gemini',
-  MISTRAL   : 'mistral',
-  LOCAL     : 'local',
+  OPENAI     : 'openai',
+  ANTHROPIC  : 'anthropic',
+  GEMINI     : 'gemini',
+  MISTRAL    : 'mistral',
+  LOCAL      : 'local',
+  SIMULATION : 'simulation',
 })

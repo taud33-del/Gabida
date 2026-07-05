@@ -286,3 +286,9 @@ export {
   ProviderNotFoundError,
   InvalidProviderError,
 } from './ProviderError.js'
+export {
+  createSimulationProvider,
+  simulationProvider,
+  SimulationProviderError,
+  SIMULATION_MODES,
+} from './providers/simulation.js'
