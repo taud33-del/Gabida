@@ -30,6 +30,7 @@ import { Module }               from '../../modules/Module.js'
 import { ModuleRegistry }       from '../../modules/ModuleRegistry.js'
 import { ErreurModuleManager }  from '../../modules/ModuleManager.js'
 import { MODULE_STATES }        from '../../modules/ModuleState.js'
+import { MODULE_EVENTS }        from '../../modules/ModuleEvents.js'
 import { EventBus }             from '../../events/EventBus.js'
 import { ServiceRegistry }      from '../../registry/ServiceRegistry.js'
 import { REGISTRATION_TYPES }   from '../../registry/RegistrationTypes.js'
@@ -492,5 +493,34 @@ describe('Runtime — execution de pipeline', () => {
     runtime.events.subscribe(RUNTIME_EVENTS.ERROR, err => { recu = err })
     await runtime.execute(new Context()).catch(() => {})
     expect(recu).toBeInstanceOf(RuntimeExecutionError)
+  })
+})
+
+// ─── Runtime — relais des MODULE_EVENTS ──────────────────────────────────
+
+describe('Runtime — relais des MODULE_EVENTS', () => {
+  test('les MODULE_EVENTS des modules sont observables sur runtime.events', async () => {
+    const journal   = []
+    const registry  = makeRegistry(new TracingModule('m', []))
+    const runtime   = new Runtime({ registry })
+    runtime.events.subscribe(MODULE_EVENTS.INITIALIZED, n => journal.push(`init:${n}`))
+    runtime.events.subscribe(MODULE_EVENTS.STARTED,     n => journal.push(`start:${n}`))
+    runtime.events.subscribe(MODULE_EVENTS.STOPPED,     n => journal.push(`stop:${n}`))
+    runtime.events.subscribe(MODULE_EVENTS.DISPOSED,    n => journal.push(`dispose:${n}`))
+    await runtime.start()
+    await runtime.stop()
+    expect(journal).toEqual(['init:m', 'start:m', 'stop:m', 'dispose:m'])
+  })
+
+  test('RUNTIME_EVENTS et MODULE_EVENTS cohabitent sur le meme bus', async () => {
+    const registry = makeRegistry(new TracingModule('m', []))
+    const runtime  = new Runtime({ registry })
+    let runtimeStarted = false
+    let moduleStarted  = false
+    runtime.events.subscribe(RUNTIME_EVENTS.STARTED, () => { runtimeStarted = true })
+    runtime.events.subscribe(MODULE_EVENTS.STARTED,  () => { moduleStarted  = true })
+    await runtime.start()
+    expect(runtimeStarted).toBe(true)
+    expect(moduleStarted).toBe(true)
   })
 })

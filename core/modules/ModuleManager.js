@@ -15,9 +15,16 @@
  *
  * Les operations collectives (initializeAll, startAll, stopAll, disposeAll)
  * propagent les erreurs sans masquer leur origine.
+ *
+ * Observabilite (Sprint 17) : si un EventBus est injecte, le ModuleManager
+ * publie les MODULE_EVENTS individuels du cycle de vie (INITIALIZED, STARTED,
+ * STOPPED, DISPOSED) apres chaque operation reussie, et ERROR (portant
+ * l'ErreurModuleManager) en cas d'echec, avant de propager. Sans bus, il reste
+ * totalement silencieux. Le ModuleManager n'emet aucun evenement collectif.
  */
 
 import { ModuleRegistry } from './ModuleRegistry.js'
+import { MODULE_EVENTS } from './ModuleEvents.js'
 
 // ─── Erreurs ──────────────────────────────────────────────────────────────────
 
@@ -41,10 +48,27 @@ export class ErreurModuleManager extends Error {
 export class ModuleManager {
   /**
    * @param {ModuleRegistry} registry
+   * @param {object}   [options]
+   * @param {import('../events/EventBus.js').EventBus} [options.eventBus]
+   *   Bus optionnel sur lequel publier les MODULE_EVENTS. Absent : aucune emission.
    */
-  constructor(registry) {
+  constructor(registry, { eventBus } = {}) {
     /** @type {ModuleRegistry} */
     this._registry = registry
+    /** @type {import('../events/EventBus.js').EventBus | null} */
+    this._eventBus = eventBus ?? null
+  }
+
+  /**
+   * Publie un evenement sur le bus injecte, ou ne fait rien si aucun bus.
+   *
+   * @private
+   * @param {string} event
+   * @param {*}      payload
+   * @returns {void}
+   */
+  _emit(event, payload) {
+    if (this._eventBus) this._eventBus.emit(event, payload)
   }
 
   // ─── Operations individuelles ─────────────────────────────────────────────────
@@ -60,8 +84,11 @@ export class ModuleManager {
     try {
       await module.initialize()
     } catch (err) {
-      throw new ErreurModuleManager('initialize', module.name, err)
+      const erreur = new ErreurModuleManager('initialize', module.name, err)
+      this._emit(MODULE_EVENTS.ERROR, erreur)
+      throw erreur
     }
+    this._emit(MODULE_EVENTS.INITIALIZED, module.name)
   }
 
   /**
@@ -75,8 +102,11 @@ export class ModuleManager {
     try {
       await module.start()
     } catch (err) {
-      throw new ErreurModuleManager('start', module.name, err)
+      const erreur = new ErreurModuleManager('start', module.name, err)
+      this._emit(MODULE_EVENTS.ERROR, erreur)
+      throw erreur
     }
+    this._emit(MODULE_EVENTS.STARTED, module.name)
   }
 
   /**
@@ -90,8 +120,11 @@ export class ModuleManager {
     try {
       await module.stop()
     } catch (err) {
-      throw new ErreurModuleManager('stop', module.name, err)
+      const erreur = new ErreurModuleManager('stop', module.name, err)
+      this._emit(MODULE_EVENTS.ERROR, erreur)
+      throw erreur
     }
+    this._emit(MODULE_EVENTS.STOPPED, module.name)
   }
 
   /**
@@ -105,8 +138,11 @@ export class ModuleManager {
     try {
       await module.dispose()
     } catch (err) {
-      throw new ErreurModuleManager('dispose', module.name, err)
+      const erreur = new ErreurModuleManager('dispose', module.name, err)
+      this._emit(MODULE_EVENTS.ERROR, erreur)
+      throw erreur
     }
+    this._emit(MODULE_EVENTS.DISPOSED, module.name)
   }
 
   // ─── Operations collectives ───────────────────────────────────────────────────

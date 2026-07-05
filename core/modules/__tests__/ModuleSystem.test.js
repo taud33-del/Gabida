@@ -28,6 +28,7 @@ import {
   ErreurModuleInconnu,
 }                                                from '../ModuleRegistry.js'
 import { ModuleManager, ErreurModuleManager }    from '../ModuleManager.js'
+import { EventBus }                              from '../../events/EventBus.js'
 
 // ─── Stub concret minimal ─────────────────────────────────────────────────────
 
@@ -451,6 +452,74 @@ describe('ModuleManager', () => {
       for (const m of modules) {
         expect(m.getState()).toBe(MODULE_STATES.DISPOSED)
       }
+    })
+  })
+
+  // ─── ModuleManager — emission des MODULE_EVENTS ────────────────────────────
+
+  describe('ModuleManager — emission des MODULE_EVENTS', () => {
+    let bus
+    let registry
+    let manager
+
+    beforeEach(() => {
+      bus      = new EventBus()
+      registry = new ModuleRegistry()
+      manager  = new ModuleManager(registry, { eventBus: bus })
+    })
+
+    test('emet INITIALIZED avec le nom du module', async () => {
+      let recu
+      bus.subscribe(MODULE_EVENTS.INITIALIZED, name => { recu = name })
+      await manager.initialize(new StubModule('m'))
+      expect(recu).toBe('m')
+    })
+
+    test('emet STARTED, STOPPED, DISPOSED avec le nom du module', async () => {
+      const recus = {}
+      bus.subscribe(MODULE_EVENTS.STARTED,  n => { recus.started  = n })
+      bus.subscribe(MODULE_EVENTS.STOPPED,  n => { recus.stopped  = n })
+      bus.subscribe(MODULE_EVENTS.DISPOSED, n => { recus.disposed = n })
+      const module = new StubModule('m')
+      await manager.initialize(module)
+      await manager.start(module)
+      await manager.stop(module)
+      await manager.dispose(module)
+      expect(recus).toEqual({ started: 'm', stopped: 'm', disposed: 'm' })
+    })
+
+    test('emet ERROR avec une ErreurModuleManager puis propage', async () => {
+      let recu
+      bus.subscribe(MODULE_EVENTS.ERROR, err => { recu = err })
+      const module = new StubModuleEchouant('ko')
+      await manager.initialize(module)
+      await expect(manager.start(module)).rejects.toBeInstanceOf(ErreurModuleManager)
+      expect(recu).toBeInstanceOf(ErreurModuleManager)
+      expect(recu.operation).toBe('start')
+      expect(recu.moduleName).toBe('ko')
+      expect(recu.cause).toBeInstanceOf(Error)
+    })
+
+    test("n'emet pas d'evenement de succes en cas d'echec", async () => {
+      let started = false
+      bus.subscribe(MODULE_EVENTS.STARTED, () => { started = true })
+      const module = new StubModuleEchouant('ko')
+      await manager.initialize(module)
+      await manager.start(module).catch(() => {})
+      expect(started).toBe(false)
+    })
+
+    test('sans bus injecte : aucune emission, aucun throw', async () => {
+      const sansBus = new ModuleManager(new ModuleRegistry())
+      await expect(sansBus.initialize(new StubModule('m'))).resolves.toBeUndefined()
+    })
+
+    test('les operations collectives emettent un evenement par module', async () => {
+      const noms = []
+      bus.subscribe(MODULE_EVENTS.INITIALIZED, n => noms.push(n))
+      ;['a', 'b', 'c'].forEach(n => registry.register(new StubModule(n)))
+      await manager.initializeAll()
+      expect(noms).toEqual(['a', 'b', 'c'])
     })
   })
 })
