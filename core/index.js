@@ -37,8 +37,7 @@ import { computeDecision }   from '../decision/index.js'
 import { buildPrompt }       from '../prompt/index.js'
 import { callProvider }      from '../api/index.js'
 import { updateMemory }      from '../memoire/index.js'
-
-import { ROLES_MESSAGE }     from '../constants/RolesMessage.js'
+import { ajouterEchange }    from '../conversation/index.js'
 
 // ─── Erreurs ─────────────────────────────────────────────────────────────────
 
@@ -267,15 +266,10 @@ export function mettreAJourEtat(etat, reponseIA, miseAJourMemoire, playerMessage
     ...miseAJourMemoire.ajoutes,
   ].sort((a, b) => b.importance - a.importance)
 
-  const nouveauxMessages = [
-    { role: ROLES_MESSAGE.USER,      contenu: playerMessage.texte },
-    { role: ROLES_MESSAGE.ASSISTANT, contenu: reponseIA.texte      },
-  ]
-
   return {
     ...etat,
     tourCourant  : etat.tourCourant + 1,
-    historique   : [...(etat.historique ?? []), ...nouveauxMessages],
+    historique   : ajouterEchange(etat.historique, playerMessage, reponseIA),
     memoireVecue : { souvenirs: souvenirsFusionnes },
   }
 }
