@@ -36,7 +36,7 @@ import { computeRessenti }   from '../ressenti/index.js'
 import { computeDecision }   from '../decision/index.js'
 import { buildPrompt }       from '../prompt/index.js'
 import { callProvider }      from '../api/index.js'
-import { updateMemory }      from '../memoire/index.js'
+import { updateMemory, appliquerMiseAJour } from '../memoire/index.js'
 import { ajouterEchange }    from '../conversation/index.js'
 
 // ─── Erreurs ─────────────────────────────────────────────────────────────────
@@ -249,9 +249,9 @@ export async function executerPipeline(playerMessage, fiches, etat, providerConf
  * Construit un NOUVEL objet Etat depuis l'etat precedent.
  * Ne modifie jamais l'objet etat recu.
  *
- * Operations :
- *   1. Fusionner MiseAJourMemoire dans memoireVecue.souvenirs (tri importance desc)
- *   2. Ajouter message joueur puis reponse IA a historique
+ * Operations (assemblage uniquement — chaque logique vit dans son module) :
+ *   1. memoireVecue : delegue a memoire.appliquerMiseAJour(miseAJourMemoire)
+ *   2. historique   : delegue a conversation.ajouterEchange(...)
  *   3. Incrementer tourCourant
  *
  * @param {import('../types/Etat.js').Etat} etat
@@ -261,16 +261,11 @@ export async function executerPipeline(playerMessage, fiches, etat, providerConf
  * @returns {import('../types/Etat.js').Etat}
  */
 export function mettreAJourEtat(etat, reponseIA, miseAJourMemoire, playerMessage) {
-  const souvenirsFusionnes = [
-    ...miseAJourMemoire.conserves,
-    ...miseAJourMemoire.ajoutes,
-  ].sort((a, b) => b.importance - a.importance)
-
   return {
     ...etat,
     tourCourant  : etat.tourCourant + 1,
     historique   : ajouterEchange(etat.historique, playerMessage, reponseIA),
-    memoireVecue : { souvenirs: souvenirsFusionnes },
+    memoireVecue : appliquerMiseAJour(miseAJourMemoire),
   }
 }
 

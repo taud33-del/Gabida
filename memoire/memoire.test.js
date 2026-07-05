@@ -19,6 +19,7 @@ import {
   appliquerOubli,
   assemblerMiseAJour,
   updateMemory,
+  appliquerMiseAJour,
 } from './index.js'
 
 import { TYPES_SOUVENIR }      from '../constants/TypesSouvenir.js'
@@ -456,5 +457,53 @@ describe('updateMemory', () => {
     const result = updateMemory(evenement, decision, reponseIA, fiches, etat)
     const total = result.ajoutes.length + result.conserves.length
     expect(total).toBeLessThanOrEqual(20)
+  })
+})
+
+// ─── appliquerMiseAJour ─────────────────────────────────────────────────────────
+
+describe('appliquerMiseAJour', () => {
+  const conserve = { id: 'c1', type: TYPES_SOUVENIR.DIALOGUE, contenu: 'conserve', importance: 0.6, tour: 1 }
+  const ajoute   = { id: 'a1', type: TYPES_SOUVENIR.PROMESSE, contenu: 'ajoute',   importance: 0.9, tour: 2 }
+
+  function fabriqueMiseAJour(overrides = {}) {
+    return { ajoutes: [], oublies: [], conserves: [], ...overrides }
+  }
+
+  test('fusionne conserves et ajoutes dans memoireVecue.souvenirs', () => {
+    const result = appliquerMiseAJour(fabriqueMiseAJour({ conserves: [conserve], ajoutes: [ajoute] }))
+    expect(result.souvenirs).toHaveLength(2)
+  })
+
+  test('trie par importance decroissante', () => {
+    const faible = { id: 'f1', type: TYPES_SOUVENIR.DIALOGUE, contenu: 'faible', importance: 0.3, tour: 1 }
+    const fort   = { id: 'f2', type: TYPES_SOUVENIR.PROMESSE, contenu: 'fort',   importance: 0.9, tour: 1 }
+    const result = appliquerMiseAJour(fabriqueMiseAJour({ conserves: [faible], ajoutes: [fort] }))
+    expect(result.souvenirs[0].importance).toBeGreaterThan(result.souvenirs[1].importance)
+  })
+
+  test('retourne une MemoireVecue vide si aucun souvenir', () => {
+    expect(appliquerMiseAJour(fabriqueMiseAJour())).toEqual({ souvenirs: [] })
+  })
+
+  test('ne reinjecte pas les oublies', () => {
+    const result = appliquerMiseAJour(
+      fabriqueMiseAJour({ conserves: [conserve], oublies: ['x1', 'x2'] })
+    )
+    expect(result.souvenirs).toHaveLength(1)
+    expect(result.souvenirs[0].id).toBe('c1')
+  })
+
+  test('ne mute pas les tableaux d entree (write-as-copy)', () => {
+    const conserves = [conserve]
+    const ajoutes   = [ajoute]
+    appliquerMiseAJour(fabriqueMiseAJour({ conserves, ajoutes }))
+    expect(conserves).toHaveLength(1)
+    expect(ajoutes).toHaveLength(1)
+  })
+
+  test('est deterministe (meme entree -> meme sortie)', () => {
+    const maj = fabriqueMiseAJour({ conserves: [conserve], ajoutes: [ajoute] })
+    expect(appliquerMiseAJour(maj)).toEqual(appliquerMiseAJour(maj))
   })
 })
