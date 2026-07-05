@@ -29,24 +29,29 @@
  *   - callProvider    : passerelle principale du cycle
  *   - registerProvider : injection de dependance, appelee avant le cycle
  *
+ * Le registre des adaptateurs est formalise par la classe ProviderRegistry
+ * (api/ProviderRegistry.js). registerProvider/getProviders/callProvider ne sont
+ * que de fines facades au-dessus de cet unique registre interne. La semantique
+ * est stricte : un doublon de nom leve ProviderAlreadyRegisteredError et un
+ * provider absent leve ProviderNotFoundError.
+ *
  * Axiome applicable : Toute evolution doit etre explicable (Axiome 19).
  *
  * @module api
  */
 
-import { PROVIDERS } from '../constants/Providers.js'
 import { ROLES_MESSAGE_INTERNE } from '../constants/RolesMessageInterne.js'
+import { ProviderRegistry } from './ProviderRegistry.js'
 
 // ─── Registre interne ────────────────────────────────────────────────────────
 
 /**
- * Registre des adaptateurs enregistres par l'application hote.
- * Cle : identifiant provider (valeur de PROVIDERS).
- * Valeur : fonction Adaptateur.
+ * Registre unique des adaptateurs enregistres par l'application hote.
+ * Cle : identifiant provider (valeur de PROVIDERS). Valeur : fonction Adaptateur.
  *
- * @type {Map<string, Adaptateur>}
+ * @type {ProviderRegistry}
  */
-const _registre = new Map()
+const _registre = new ProviderRegistry()
 
 // ─── Types internes ───────────────────────────────────────────────────────────
 
@@ -220,13 +225,6 @@ export function normaliserReponse(ctx, reponseRaw) {
 export async function callProvider(prompt, config) {
   const adaptateur = _registre.get(config.provider)
 
-  if (!adaptateur) {
-    throw new Error(
-      `api.callProvider : provider "${config.provider}" non enregistre. ` +
-      `Appelez registerProvider("${config.provider}", adaptateur) avant le premier cycle.`
-    )
-  }
-
   const ctx = Object.freeze({
     prompt,
     config,
@@ -250,7 +248,9 @@ export async function callProvider(prompt, config) {
  *
  * Enregistre un adaptateur LLM dans le registre interne.
  * Appelee par l'application hote avant le premier cycle.
- * Ecrase silencieusement si le nom est deja enregistre.
+ * Leve ProviderAlreadyRegisteredError si le nom est deja enregistre (aucun
+ * ecrasement silencieux) et InvalidProviderError si l'adaptateur n'est pas une
+ * fonction.
  *
  * Le moteur Gabida ne connait jamais directement OpenAI, Anthropic, Gemini
  * ou tout autre provider — uniquement des adaptateurs enregistres ici.
@@ -258,14 +258,11 @@ export async function callProvider(prompt, config) {
  * @param {string} nom           -- Valeur de PROVIDERS
  * @param {Adaptateur} adaptateur
  * @returns {void}
+ * @throws {import('./ProviderError.js').InvalidProviderError}
+ * @throws {import('./ProviderError.js').ProviderAlreadyRegisteredError}
  */
 export function registerProvider(nom, adaptateur) {
-  if (typeof adaptateur !== 'function') {
-    throw new Error(
-      `api.registerProvider : l'adaptateur pour "${nom}" doit etre une fonction.`
-    )
-  }
-  _registre.set(nom, adaptateur)
+  _registre.register(nom, adaptateur)
 }
 
 /**
@@ -277,5 +274,15 @@ export function registerProvider(nom, adaptateur) {
  * @returns {string[]}
  */
 export function getProviders() {
-  return Array.from(_registre.keys())
+  return _registre.list()
 }
+
+// ─── Re-exports ────────────────────────────────────────────────────────────────
+
+export { ProviderRegistry } from './ProviderRegistry.js'
+export {
+  ProviderError,
+  ProviderAlreadyRegisteredError,
+  ProviderNotFoundError,
+  InvalidProviderError,
+} from './ProviderError.js'
