@@ -243,9 +243,9 @@ describe('construireResultat', () => {
 //     et en verifiant que les modules stubs (ressenti, decision) levent bien
 //     des ErreurPipeline correctement identifiees.
 //
-// Les tests d'integration complete (analyzeEvent + computeInfluences implementes,
-// computeRessenti / computeDecision stubs) verifient la propagation des erreurs
-// et la non-transmission de filtreRelationnel a decision/.
+// La chaine cognitive est desormais complete (analyzeEvent, computeInfluences,
+// computeRessenti, computeDecision, buildPrompt implementes). Ces tests
+// verifient l'execution de bout en bout et la propagation des erreurs provider.
 
 const PROVIDER_TEST = 'core-integration-test'
 
@@ -260,26 +260,19 @@ beforeAll(() => {
 describe('executerPipeline — propagation des erreurs', () => {
   const providerConfig = { provider: PROVIDER_TEST, cleApi: 'test', modele: 'test-model' }
 
-  test('leve ErreurPipeline quand computeRessenti est non implemente', async () => {
-    await expect(
-      executerPipeline(fabriquePlayerMessage(), fabriqueFiches(), fabriqueEtat(), providerConfig)
-    ).rejects.toThrow(ErreurPipeline)
-  })
-
-  test('ErreurPipeline identifie l etape fautive (computeRessenti stub)', async () => {
-    try {
-      await executerPipeline(fabriquePlayerMessage(), fabriqueFiches(), fabriqueEtat(), providerConfig)
-    } catch (e) {
-      expect(e).toBeInstanceOf(ErreurPipeline)
-      expect(['computeRessenti', 'computeDecision', 'buildPrompt', 'updateMemory']).toContain(e.etape)
-    }
+  test('s execute de bout en bout avec le provider mock enregistre', async () => {
+    const result = await executerPipeline(
+      fabriquePlayerMessage(), fabriqueFiches(), fabriqueEtat(), providerConfig
+    )
+    expect(result).toBeDefined()
+    expect(result.reponseIA.texte).toBe('Reponse mock.')
   })
 
   test('leve ErreurProvider si le provider n est pas enregistre', async () => {
     const configInconnue = { provider: 'provider-inconnu-core', cleApi: 'x', modele: 'x' }
     await expect(
       executerPipeline(fabriquePlayerMessage(), fabriqueFiches(), fabriqueEtat(), configInconnue)
-    ).rejects.toThrow(ErreurPipeline)
+    ).rejects.toThrow(ErreurProvider)
   })
 
   test('leve ErreurProvider si l adaptateur echoue sur le reseau', async () => {
