@@ -379,3 +379,78 @@ describe('Context', () => {
     })
   })
 })
+
+// ─── Context — slots d'infrastructure (variables / flags / metadata) ──────────
+
+describe('Context — slots d\'infrastructure', () => {
+  const cases = [
+    ['variables', CONTEXT_KEYS.VARIABLES, 'getVariables', 'withVariables'],
+    ['flags',     CONTEXT_KEYS.FLAGS,     'getFlags',     'withFlags'],
+    ['metadata',  CONTEXT_KEYS.METADATA,  'getMetadata',  'withMetadata'],
+  ]
+
+  describe.each(cases)('%s', (_label, key, getter, setter) => {
+    test(`${getter}() vaut undefined en l'absence de valeur`, () => {
+      expect(new Context()[getter]()).toBeUndefined()
+    })
+
+    test(`${setter}() retourne un nouveau Context`, () => {
+      const base = new Context()
+      const next = base[setter]({ a: 1 })
+      expect(next).toBeInstanceOf(Context)
+      expect(next).not.toBe(base)
+    })
+
+    test(`${getter}() relit la valeur ecrite par ${setter}()`, () => {
+      const ctx = new Context()[setter]({ a: 1, b: 2 })
+      expect(ctx[getter]()).toEqual({ a: 1, b: 2 })
+    })
+
+    test(`${getter}() renvoie un snapshot gele`, () => {
+      const ctx = new Context()[setter]({ a: 1 })
+      expect(Object.isFrozen(ctx[getter]())).toBe(true)
+    })
+
+    test(`${setter}() n'altere pas le Context d'origine`, () => {
+      const base = new Context()
+      base[setter]({ a: 1 })
+      expect(base.has(key)).toBe(false)
+    })
+
+    test(`${setter}() isole la reference d'entree`, () => {
+      const input = { a: 1 }
+      const ctx = new Context()[setter](input)
+      input.a = 99
+      expect(ctx[getter]()).toEqual({ a: 1 })
+    })
+
+    test(`le slot apparait dans keys() et size()`, () => {
+      const ctx = new Context()[setter]({ a: 1 })
+      expect(ctx.keys()).toContain(key)
+      expect(ctx.size()).toBe(1)
+    })
+
+    test.each([null, undefined, 42, 'x', [1, 2]])(
+      `${setter}() rejette une valeur non-objet (%p)`,
+      (bad) => {
+        expect(() => new Context()[setter](bad)).toThrow(InvalidContextValueError)
+      },
+    )
+  })
+
+  test('les trois slots coexistent independamment', () => {
+    const ctx = new Context()
+      .withVariables({ v: 1 })
+      .withFlags({ f: true })
+      .withMetadata({ m: 'x' })
+    expect(ctx.getVariables()).toEqual({ v: 1 })
+    expect(ctx.getFlags()).toEqual({ f: true })
+    expect(ctx.getMetadata()).toEqual({ m: 'x' })
+    expect(ctx.size()).toBe(3)
+  })
+
+  test('withVariables() reste coherent avec get() generique', () => {
+    const ctx = new Context().withVariables({ a: 1 })
+    expect(ctx.get(CONTEXT_KEYS.VARIABLES)).toEqual({ a: 1 })
+  })
+})

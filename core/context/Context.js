@@ -18,7 +18,8 @@
  */
 
 import { snapshot, clone } from './ContextSnapshot.js'
-import { validateKey, validateValue } from './ContextValidator.js'
+import { validateKey, validateValue, isContextObject } from './ContextValidator.js'
+import { InvalidContextValueError } from './ContextError.js'
 import {
   assertPlayer,
   assertCharacter,
@@ -260,6 +261,46 @@ export class Context {
   withMemory(memory) {
     assertMemory(memory)
     return this._withTyped(CONTEXT_KEYS.MEMORY, memory)
+  }
+
+  // ─── Slots d'infrastructure (variables / flags / metadata) ───────────────────
+  //
+  // Accesseurs nommes vers des slots techniques plats du sac generique. Ils ne
+  // modifient pas le modele de stockage : la lecture renvoie un snapshot gele,
+  // l'ecriture retourne un nouveau Context. Aucun concept metier.
+
+  /** @returns {object | undefined} */
+  getVariables() { return this.get(CONTEXT_KEYS.VARIABLES) }
+
+  /** @returns {object | undefined} */
+  getFlags()     { return this.get(CONTEXT_KEYS.FLAGS) }
+
+  /** @returns {object | undefined} */
+  getMetadata()  { return this.get(CONTEXT_KEYS.METADATA) }
+
+  /** @param {object} variables @returns {Context} */
+  withVariables(variables) { return this._withInfraSlot(CONTEXT_KEYS.VARIABLES, variables) }
+
+  /** @param {object} flags @returns {Context} */
+  withFlags(flags)         { return this._withInfraSlot(CONTEXT_KEYS.FLAGS, flags) }
+
+  /** @param {object} metadata @returns {Context} */
+  withMetadata(metadata)   { return this._withInfraSlot(CONTEXT_KEYS.METADATA, metadata) }
+
+  /**
+   * Ecrit un slot d'infrastructure plat et retourne un nouveau Context.
+   *
+   * @private
+   * @param {string} key
+   * @param {object} value — doit etre un objet plat (ni null, ni tableau).
+   * @returns {Context}
+   * @throws {InvalidContextValueError}
+   */
+  _withInfraSlot(key, value) {
+    if (!isContextObject(value)) {
+      throw new InvalidContextValueError(key, value)
+    }
+    return this._withData({ ...this._data, [key]: clone(value) })
   }
 
   // ─── Snapshot ─────────────────────────────────────────────────────────────────
