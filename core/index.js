@@ -221,7 +221,7 @@ export async function executerPipeline(playerMessage, fiches, etat, providerConf
 
   let prompt
   try {
-    prompt = buildPrompt(decision, ressenti, fiches, etat)
+    prompt = buildPrompt(playerMessage, decision, ressenti, fiches, etat)
   } catch (e) {
     throw new ErreurPipeline('buildPrompt', e)
   }
