@@ -9,3 +9,9 @@ export { Runtime, ErreurTransitionRuntime } from './Runtime.js'
 export { RuntimeState }                     from './RuntimeState.js'
 export { RUNTIME_EVENTS }                   from './RuntimeEvents.js'
 export { isTransitionAllowed, getAllowedTransitions } from './RuntimeLifecycle.js'
+export {
+  RuntimeError,
+  InvalidPipelineError,
+  InvalidContextError,
+  RuntimeExecutionError,
+} from './RuntimeError.js'
