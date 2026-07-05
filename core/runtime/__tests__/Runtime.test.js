@@ -31,6 +31,7 @@ import { ModuleRegistry }       from '../../modules/ModuleRegistry.js'
 import { ErreurModuleManager }  from '../../modules/ModuleManager.js'
 import { MODULE_STATES }        from '../../modules/ModuleState.js'
 import { MODULE_EVENTS }        from '../../modules/ModuleEvents.js'
+import { PIPELINE_EVENTS }      from '../../pipeline/PipelineEvents.js'
 import { EventBus }             from '../../events/EventBus.js'
 import { ServiceRegistry }      from '../../registry/ServiceRegistry.js'
 import { REGISTRATION_TYPES }   from '../../registry/RegistrationTypes.js'
@@ -493,6 +494,48 @@ describe('Runtime — execution de pipeline', () => {
     runtime.events.subscribe(RUNTIME_EVENTS.ERROR, err => { recu = err })
     await runtime.execute(new Context()).catch(() => {})
     expect(recu).toBeInstanceOf(RuntimeExecutionError)
+  })
+
+  test('execute() emet PIPELINE_STARTED puis PIPELINE_FINISHED en cas de succes', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new TracingStage('a')) })
+    await runtime.start()
+    const journal = []
+    runtime.events.subscribe(PIPELINE_EVENTS.PIPELINE_STARTED,  () => journal.push('started'))
+    runtime.events.subscribe(PIPELINE_EVENTS.PIPELINE_FINISHED, () => journal.push('finished'))
+    await runtime.execute(new Context())
+    expect(journal).toEqual(['started', 'finished'])
+  })
+
+  test('execute() emet PIPELINE_STARTED avant l execution du pipeline', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new TracingStage('a')) })
+    await runtime.start()
+    let vu = false
+    runtime.events.subscribe(PIPELINE_EVENTS.PIPELINE_STARTED, () => { vu = true })
+    await runtime.execute(new Context())
+    expect(vu).toBe(true)
+  })
+
+  test('execute() n emet PAS PIPELINE_FINISHED en cas d echec de stage', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new FailingStage('boom')) })
+    await runtime.start()
+    let started  = false
+    let finished = false
+    runtime.events.subscribe(PIPELINE_EVENTS.PIPELINE_STARTED,  () => { started  = true })
+    runtime.events.subscribe(PIPELINE_EVENTS.PIPELINE_FINISHED, () => { finished = true })
+    await runtime.execute(new Context()).catch(() => {})
+    expect(started).toBe(true)
+    expect(finished).toBe(false)
+  })
+
+  test('execute() n emet aucun evenement par stage (Pipeline reste pur)', async () => {
+    const runtime = new Runtime({ pipeline: makePipeline(new TracingStage('a'), new TracingStage('b')) })
+    await runtime.start()
+    let stageEvents = 0
+    runtime.events.subscribe(PIPELINE_EVENTS.STAGE_STARTED,  () => { stageEvents++ })
+    runtime.events.subscribe(PIPELINE_EVENTS.STAGE_FINISHED, () => { stageEvents++ })
+    runtime.events.subscribe(PIPELINE_EVENTS.STAGE_FAILED,   () => { stageEvents++ })
+    await runtime.execute(new Context())
+    expect(stageEvents).toBe(0)
   })
 })
 

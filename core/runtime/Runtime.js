@@ -83,6 +83,16 @@
  * propagee. Le Runtime ne mute jamais le Context : le determinisme et
  * l'immutabilite sont preserves.
  *
+ * ─── Observabilite de l'execution du pipeline (Sprint 18) ────────────────────
+ *
+ * Autour de l'execution, le Runtime emet les PIPELINE_EVENTS sur son bus
+ * partage : PIPELINE_STARTED avant l'appel a pipeline.execute(), puis
+ * PIPELINE_FINISHED uniquement apres un succes. En cas d'echec, aucun
+ * PIPELINE_FINISHED n'est emis : l'erreur reste signalee exclusivement via
+ * RUNTIME_EVENTS.ERROR. Le Pipeline reste totalement pur (aucune dependance a
+ * l'EventBus) : c'est le Runtime, deja emetteur d'evenements, qui observe son
+ * execution. Aucun evenement par stage n'est emis.
+ *
  * ─── Gestion des erreurs ────────────────────────────────────────────────────
  *
  * Si initializeAll()/startAll() (au demarrage) ou stopAll()/disposeAll() (a
@@ -103,6 +113,7 @@ import { ModuleManager } from '../modules/ModuleManager.js'
 import { EventBus } from '../events/EventBus.js'
 import { ServiceRegistry } from '../registry/ServiceRegistry.js'
 import { Pipeline } from '../pipeline/Pipeline.js'
+import { PIPELINE_EVENTS } from '../pipeline/PipelineEvents.js'
 import { Context } from '../context/Context.js'
 import {
   RuntimeError,
@@ -297,13 +308,17 @@ export class Runtime {
       throw new InvalidContextError('execute() requiert une instance de Context', context)
     }
 
+    this._eventBus.emit(PIPELINE_EVENTS.PIPELINE_STARTED, undefined)
+    let result
     try {
-      return await this._pipeline.execute(context)
+      result = await this._pipeline.execute(context)
     } catch (cause) {
       const pipelineSnapshot = { stages: this._pipeline.getAll().map(stage => stage.name) }
       const erreur = new RuntimeExecutionError(cause, context.snapshot(), pipelineSnapshot)
       this._eventBus.emit(RUNTIME_EVENTS.ERROR, erreur)
       throw erreur
     }
+    this._eventBus.emit(PIPELINE_EVENTS.PIPELINE_FINISHED, undefined)
+    return result
   }
 }
