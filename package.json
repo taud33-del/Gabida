@@ -4,6 +4,7 @@
   "description": "Moteur Gabida — architecture universelle",
   "type": "module",
   "scripts": {
+    "start": "node bin/gabida.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "devDependencies": {
