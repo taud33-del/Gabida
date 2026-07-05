@@ -133,10 +133,10 @@ export class Runtime {
     this._state = new RuntimeState()
     /** @type {ModuleRegistry} */
     this._registry = registry ?? new ModuleRegistry()
-    /** @type {ModuleManager} */
-    this._manager = new ModuleManager(this._registry)
     /** @type {EventBus} */
     this._eventBus = eventBus ?? new EventBus()
+    /** @type {ModuleManager} */
+    this._manager = new ModuleManager(this._registry, { eventBus: this._eventBus })
     /** @type {ServiceRegistry} */
     this._services = services ?? new ServiceRegistry()
     /** @type {Pipeline|null} */
