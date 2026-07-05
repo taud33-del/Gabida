@@ -25,6 +25,8 @@ import { ModuleRegistry }       from '../../modules/ModuleRegistry.js'
 import { ErreurModuleManager }  from '../../modules/ModuleManager.js'
 import { MODULE_STATES }        from '../../modules/ModuleState.js'
 import { EventBus }             from '../../events/EventBus.js'
+import { ServiceRegistry }      from '../../registry/ServiceRegistry.js'
+import { REGISTRATION_TYPES }   from '../../registry/RegistrationTypes.js'
 
 // ─── Modules de test ────────────────────────────────────────────────────────
 //
@@ -333,5 +335,62 @@ describe('Runtime — evenements de cycle de vie', () => {
     runtime.events.subscribe(RUNTIME_EVENTS.STARTED, () => { vu = true })
     await expect(runtime.start()).rejects.toThrow()
     expect(vu).toBe(false)
+  })
+})
+
+// ─── Runtime — conteneur de services ────────────────────────────────────────
+
+describe('Runtime — conteneur de services', () => {
+  test('expose un ServiceRegistry via services', () => {
+    expect(new Runtime().services).toBeInstanceOf(ServiceRegistry)
+  })
+
+  test('utilise le conteneur injecte', () => {
+    const services = new ServiceRegistry()
+    expect(new Runtime({ services }).services).toBe(services)
+  })
+
+  test('le conteneur par defaut est vide', () => {
+    expect(new Runtime().services.size()).toBe(0)
+  })
+
+  test('un service enregistre est resolvable via le runtime', () => {
+    const runtime = new Runtime()
+    runtime.services.register('config', { debug: true })
+    expect(runtime.services.resolve('config')).toEqual({ debug: true })
+  })
+
+  test('les services survivent au demarrage', async () => {
+    const runtime = new Runtime()
+    runtime.services.register('config', { debug: true })
+    await runtime.start()
+    expect(runtime.services.has('config')).toBe(true)
+  })
+
+  test('stop() vide le conteneur de services', async () => {
+    const runtime = new Runtime()
+    runtime.services.register('config', { debug: true })
+    await runtime.start()
+    await runtime.stop()
+    expect(runtime.services.size()).toBe(0)
+  })
+
+  test('stop() dispose les descripteurs singleton resolus', async () => {
+    let dispose = 0
+    const runtime = new Runtime()
+    runtime.services.register(
+      'ephemere',
+      () => ({ dispose() { dispose += 1 } }),
+      REGISTRATION_TYPES.SINGLETON,
+    )
+    runtime.services.resolve('ephemere')
+    await runtime.start()
+    await runtime.stop()
+    expect(dispose).toBe(1)
+  })
+
+  test('conteneur, modules et bus sont trois dependances distinctes', () => {
+    const runtime = new Runtime()
+    expect(runtime.services).not.toBe(runtime.events)
   })
 })
