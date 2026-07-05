@@ -19,9 +19,14 @@ export const STAGE_KEYS = Object.freeze({
   PLAYER_MESSAGE     : 'playerMessage',
   FICHES             : 'fiches',
   ETAT               : 'etat',
+  PROVIDER_CONFIG    : 'providerConfig',
   // Sorties produites par les stages
   EVENEMENT          : 'evenement',
   FILTRE_RELATIONNEL : 'filtreRelationnel',
+  RESSENTI           : 'ressenti',
+  DECISION           : 'decision',
+  PROMPT             : 'prompt',
+  REPONSE_IA         : 'reponseIA',
 })
 
 /**
@@ -30,4 +35,8 @@ export const STAGE_KEYS = Object.freeze({
 export const STAGE_NAMES = Object.freeze({
   ANALYSE    : 'analyse',
   INFLUENCES : 'influences',
+  RESSENTI   : 'ressenti',
+  DECISION   : 'decision',
+  PROMPT     : 'prompt',
+  PROVIDER   : 'provider',
 })
