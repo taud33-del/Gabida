@@ -15,10 +15,12 @@ import {
   parseFicheTexte,
   extraireChamps,
   valeurApresLibelle,
+  valeurApresLigneContenant,
   chargerReference,
   FICHIERS_REFERENCE,
 } from './reference.js'
 import { loadFiches, TYPES_FICHE } from './index.js'
+import { analyzeEvent } from '../analyse/index.js'
 import { executeTurn } from '../core/index.js'
 import {
   registerProvider,
@@ -67,6 +69,13 @@ describe('valeurApresLibelle', () => {
   })
 })
 
+describe('valeurApresLigneContenant', () => {
+  test('retourne la valeur après une ligne contenant la sous-chaîne (numéro ignoré)', () => {
+    const texte = '7. Contexte géographique\n\nUne région montagneuse.\n'
+    expect(valeurApresLigneContenant(texte, 'Contexte géographique')).toBe('Une région montagneuse.')
+  })
+})
+
 describe('chargerReference — cas Léa Martin', () => {
   test('les 5 types sont mappés vers un fichier .txt', () => {
     for (const type of TYPES_FICHE) {
@@ -85,7 +94,16 @@ describe('chargerReference — cas Léa Martin', () => {
 
     expect(sources.personnage.nom).toBe('Léa Martin')
     expect(sources.univers.nom).toBe('Terre (Contemporaine)')
+    expect(sources.aventure.lieuDepart).toBe("Une région montagneuse vaste et difficile d'accès.")
     expect(sources.personnage.champs['Profession / Fonction']).toContain('puériculture')
+  })
+
+  test('le lieu de départ de la fiche remonte jusqu’à analyse.contexte.lieu', () => {
+    const fiches = loadFiches(chargerReference(CAS_REFERENCE))
+    const pm = { texte: 'Bonjour.', tour: 1, sessionId: 's', timestamp: 0 }
+    const etat = { tourCourant: 1, meta: { langue: 'fr' }, historique: [] }
+    const evenement = analyzeEvent(pm, fiches, etat)
+    expect(evenement.contexte.lieu).toBe(fiches.aventure.lieuDepart)
   })
 
   test('les fiches de référence passent loadFiches()', () => {

@@ -150,6 +150,31 @@ function construireFichePersonnage(texte) {
 }
 
 /**
+ * valeurApresLigneContenant(texte, sousChaine)
+ *
+ * Retourne la première ligne non vide qui suit la première ligne contenant
+ * `sousChaine` (comparaison insensible à la casse). Sert à lire des valeurs
+ * dont le libellé est préfixé d'un numéro (« 7. Contexte géographique »).
+ *
+ * @param {string} texte
+ * @param {string} sousChaine
+ * @returns {string | undefined}
+ */
+export function valeurApresLigneContenant(texte, sousChaine) {
+  const lignes = texte.split(/\r?\n/)
+  const cible = sousChaine.trim().toLowerCase()
+  for (let i = 0; i < lignes.length; i += 1) {
+    if (lignes[i].toLowerCase().includes(cible)) {
+      for (let j = i + 1; j < lignes.length; j += 1) {
+        const suivante = lignes[j].trim()
+        if (suivante !== '') return suivante
+      }
+    }
+  }
+  return undefined
+}
+
+/**
  * Construit la fiche univers : contenu conservé + nom d'univers.
  * @param {string} texte
  * @returns {object}
@@ -160,6 +185,28 @@ function construireFicheUnivers(texte) {
   return {
     ...base,
     ...(nom ? { nom } : {}),
+  }
+}
+
+/**
+ * Construit la fiche aventure : contenu conservé + lieu de départ.
+ *
+ * `lieuDepart` est lu depuis le contexte géographique de la fiche (le lieu où
+ * débute l'aventure). C'est le champ exploité par analyse.extraireLieu() et par
+ * prompt (ligne « Lieu : … »). Aucune valeur inventée : si le libellé est
+ * absent, le champ n'est pas défini et le moteur conserve son comportement par
+ * défaut. La durée estimée de la fiche (« Libre ») n'est pas numérique et n'est
+ * donc pas mappée sur `dureeEstimee`.
+ *
+ * @param {string} texte
+ * @returns {object}
+ */
+function construireFicheAventure(texte) {
+  const base = parseFicheTexte(texte)
+  const lieuDepart = valeurApresLigneContenant(texte, 'Contexte géographique')
+  return {
+    ...base,
+    ...(lieuDepart ? { lieuDepart } : {}),
   }
 }
 
@@ -186,6 +233,8 @@ export function chargerReference(racineCasReference) {
       sources[type] = construireFichePersonnage(texte)
     } else if (type === 'univers') {
       sources[type] = construireFicheUnivers(texte)
+    } else if (type === 'aventure') {
+      sources[type] = construireFicheAventure(texte)
     } else {
       sources[type] = parseFicheTexte(texte)
     }
