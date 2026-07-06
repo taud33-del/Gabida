@@ -46,6 +46,11 @@ import { MOMENTS_NARRATIFS } from '../constants/MomentsNarratifs.js'
  * @property {object} fiches
  *   Les 5 fiches validees issues de lecture.loadFiches.
  *
+ * @property {string[]} criteresDisponibles
+ *   Identifiants des criteres reellement definis par la fiche personnage
+ *   (deduits de ses chapitres). Vide si la fiche n'expose aucun chapitre.
+ *   Sert a ancrer l'analyse dans ce que la fiche donne (Axiome 11).
+ *
  * @property {import('../types/Etat.js').Etat} etat
  *   Etat courant de la session.
  */
@@ -218,9 +223,14 @@ const CRITERES_PATTERNS = [
  * @returns {string[]} -- Tableau non vide d'identifiants de criteres.
  */
 export function identifierCriteresConcernes(ctx) {
+  const disponibles = Array.isArray(ctx.criteresDisponibles) ? ctx.criteresDisponibles : []
+  const restreindre = disponibles.length > 0
+
   const concernes = []
 
   for (const { critereId, motsCles } of CRITERES_PATTERNS) {
+    // Axiome 11 : n'attribuer que des criteres que la fiche definit reellement.
+    if (restreindre && !disponibles.includes(critereId)) continue
     for (const motCle of motsCles) {
       if (ctx.texteNormalise.includes(motCle)) {
         concernes.push(critereId)
@@ -230,10 +240,64 @@ export function identifierCriteresConcernes(ctx) {
   }
 
   if (concernes.length === 0) {
-    concernes.push('communication')
+    concernes.push(
+      (!restreindre || disponibles.includes('communication'))
+        ? 'communication'
+        : disponibles[0],
+    )
   }
 
   return concernes
+}
+
+// -----------------------------------------------------------------------------
+// Criteres definis par la fiche personnage
+// -----------------------------------------------------------------------------
+
+/**
+ * Identifiants de criteres reconnus par le module (source unique : les patterns).
+ *
+ * @type {string[]}
+ */
+const CRITERE_IDS = CRITERES_PATTERNS.map((p) => p.critereId)
+
+/**
+ * Normalise un titre de chapitre pour le comparer a un identifiant de critere
+ * (minuscules, accents retires).
+ *
+ * @param {string} titre
+ * @returns {string}
+ */
+function normaliserTitreCritere(titre) {
+  return String(titre)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
+/**
+ * criteresDefinisParFiche(personnage)
+ *
+ * Deduit les criteres reellement definis par la fiche personnage a partir de ses
+ * chapitres (ex. chapitre « Émotions » -> critere « emotions »). Ne conserve que
+ * les chapitres correspondant a un critere reconnu ; ignore les autres
+ * (Identite, Apparence, Évolution, Particularites...). Pure, aucune invention :
+ * si la fiche n'expose pas de chapitres, retourne un tableau vide.
+ *
+ * @param {object} personnage — Fiche personnage validee.
+ * @returns {string[]} — Identifiants de criteres presents dans la fiche.
+ */
+export function criteresDefinisParFiche(personnage) {
+  const chapitres = Array.isArray(personnage?.chapitres) ? personnage.chapitres : []
+  const ids = []
+  for (const chapitre of chapitres) {
+    const norme = normaliserTitreCritere(chapitre?.titre ?? '')
+    if (CRITERE_IDS.includes(norme) && !ids.includes(norme)) {
+      ids.push(norme)
+    }
+  }
+  return ids
 }
 
 // -----------------------------------------------------------------------------
@@ -306,6 +370,7 @@ export function analyzeEvent(playerMessage, fiches, etat) {
     texteOriginal:  playerMessage.texte,
     texteNormalise: normaliserTexte(playerMessage.texte),
     fiches,
+    criteresDisponibles: criteresDefinisParFiche(fiches?.personnage),
     etat,
   }
 
