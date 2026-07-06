@@ -8,7 +8,8 @@
  * logique métier : il se contente d'assembler les API publiques existantes.
  *
  * Étapes :
- *   1. charge les cinq fiches via lecture.loadFiches()
+ *   1. charge les cinq fiches du cas de référence « Léa Martin » via
+ *      lecture.chargerReference() puis lecture.loadFiches()
  *   2. crée un état initial valide
  *   3. enregistre le SimulationProvider (déterministe, sans réseau)
  *   4. appelle core.executeTurn()
@@ -17,11 +18,11 @@
  * Lancement : `npm start` (ou `node bin/gabida.js`).
  */
 
-import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
-import { loadFiches, TYPES_FICHE } from '../lecture/index.js'
+import { loadFiches } from '../lecture/index.js'
+import { chargerReference } from '../lecture/reference.js'
 import { executeTurn } from '../core/index.js'
 import {
   registerProvider,
@@ -31,20 +32,7 @@ import {
 import { PROVIDERS } from '../constants/Providers.js'
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..')
-const DOSSIER_FICHES = join(RACINE, 'fiches')
-
-/**
- * Charge l'objet `sources` attendu par loadFiches à partir des fichiers JSON.
- * @returns {object}
- */
-function chargerSources() {
-  const sources = {}
-  for (const type of TYPES_FICHE) {
-    const chemin = join(DOSSIER_FICHES, `${type}.json`)
-    sources[type] = JSON.parse(readFileSync(chemin, 'utf8'))
-  }
-  return sources
-}
+const CAS_REFERENCE = join(RACINE, 'reference', 'Léa Martin')
 
 /**
  * Construit un état initial valide pour le premier tour.
@@ -68,8 +56,8 @@ function creerEtatInitial(sessionId) {
 async function main() {
   const sessionId = 'session-demo'
 
-  // 1. Fiches
-  const fiches = loadFiches(chargerSources())
+  // 1. Fiches du cas de référence officiel
+  const fiches = loadFiches(chargerReference(CAS_REFERENCE))
 
   // 2. État initial
   const etat = creerEtatInitial(sessionId)
@@ -96,7 +84,9 @@ async function main() {
   const resultat = await executeTurn(playerMessage, providerConfig, fiches, etat)
 
   // 5. Affichage
-  console.log('=== Gabida — premier dialogue ===')
+  console.log('=== Gabida — premier dialogue (cas de référence : Léa Martin) ===')
+  console.log(`Personnage : ${fiches.personnage.nom ?? '(non renseigné)'}`)
+  console.log(`Univers    : ${fiches.univers.nom ?? '(non renseigné)'}`)
   console.log(`Joueur   : ${playerMessage.texte}`)
   console.log(`Gabida   : ${resultat.reponse}`)
   console.log('--- Nouvel état ---')
