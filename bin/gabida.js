@@ -2,10 +2,16 @@
 /**
  * bin/gabida.js
  *
- * Harnais d'exécution du premier dialogue de Gabida.
+ * Harnais d'exécution du premier dialogue réel de Gabida.
  *
  * Point d'entrée exécutable HORS environnement de test. Il ne contient aucune
- * logique métier : il se contente d'assembler les API publiques existantes.
+ * logique métier : il se contente d'assembler les API publiques existantes et
+ * d'afficher l'échange produit par le pipeline.
+ *
+ * Le personnage est construit UNIQUEMENT à partir des fiches du cas de
+ * référence : le nom affiché provient de `fiches.personnage.nom`, et la réponse
+ * provient intégralement du pipeline (Lecture → Analyse → Influences → Ressenti
+ * → Décision → Prompt → Réponse). Aucun texte de dialogue n'est codé en dur.
  *
  * Étapes :
  *   1. charge les cinq fiches du cas de référence « Léa Martin » via
@@ -13,7 +19,7 @@
  *   2. crée un état initial valide
  *   3. enregistre le SimulationProvider (déterministe, sans réseau)
  *   4. appelle core.executeTurn()
- *   5. affiche la réponse et le nouvel état dans la console
+ *   5. affiche le dialogue « Player / <personnage> »
  *
  * Lancement : `npm start` (ou `node bin/gabida.js`).
  */
@@ -34,6 +40,9 @@ import { PROVIDERS } from '../constants/Providers.js'
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CAS_REFERENCE = join(RACINE, 'reference', 'Léa Martin')
 
+/** Message d'ouverture du joueur pour ce premier tour. */
+const MESSAGE_OUVERTURE = 'Bonjour.'
+
 /**
  * Construit un état initial valide pour le premier tour.
  * @param {string} sessionId
@@ -50,10 +59,37 @@ function creerEtatInitial(sessionId) {
 }
 
 /**
+ * formaterDialogue(nomPersonnage, texteJoueur, reponse)
+ *
+ * Pure. Met en forme l'échange sous la forme demandée :
+ *   Player :
+ *   <texteJoueur>
+ *
+ *   <nomPersonnage> :
+ *   <reponse>
+ *
+ * Le nom du locuteur provient exclusivement des fiches (aucun nom codé en dur).
+ *
+ * @param {string} nomPersonnage
+ * @param {string} texteJoueur
+ * @param {string} reponse
+ * @returns {string}
+ */
+export function formaterDialogue(nomPersonnage, texteJoueur, reponse) {
+  return [
+    'Player :',
+    texteJoueur,
+    '',
+    `${nomPersonnage} :`,
+    reponse,
+  ].join('\n')
+}
+
+/**
  * Point d'entrée du harnais.
  * @returns {Promise<void>}
  */
-async function main() {
+export async function main() {
   const sessionId = 'session-demo'
 
   // 1. Fiches du cas de référence officiel
@@ -70,7 +106,7 @@ async function main() {
 
   // 4. Premier tour
   const playerMessage = {
-    texte    : 'Bonjour.',
+    texte    : MESSAGE_OUVERTURE,
     tour     : 1,
     sessionId,
     timestamp: Date.now(),
@@ -83,20 +119,14 @@ async function main() {
 
   const resultat = await executeTurn(playerMessage, providerConfig, fiches, etat)
 
-  // 5. Affichage
-  console.log('=== Gabida — premier dialogue (cas de référence : Léa Martin) ===')
-  console.log(`Personnage : ${fiches.personnage.nom ?? '(non renseigné)'}`)
-  console.log(`Univers    : ${fiches.univers.nom ?? '(non renseigné)'}`)
-  console.log(`Joueur   : ${playerMessage.texte}`)
-  console.log(`Gabida   : ${resultat.reponse}`)
-  console.log('--- Nouvel état ---')
-  console.log(`tourCourant : ${resultat.etatMisAJour.tourCourant}`)
-  console.log(`historique  : ${resultat.etatMisAJour.historique.length} message(s)`)
-  console.log(`souvenirs   : ${resultat.etatMisAJour.memoireVecue.souvenirs.length}`)
-  console.log(JSON.stringify(resultat.etatMisAJour, null, 2))
+  // 5. Dialogue réel — nom issu de la fiche, réponse issue du pipeline
+  console.log(formaterDialogue(fiches.personnage.nom, playerMessage.texte, resultat.reponse))
 }
 
-main().catch((erreur) => {
-  console.error('Échec du harnais Gabida :', erreur)
-  process.exitCode = 1
-})
+// Exécution uniquement lorsque le fichier est lancé directement (npm start).
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((erreur) => {
+    console.error('Échec du harnais Gabida :', erreur)
+    process.exitCode = 1
+  })
+}
