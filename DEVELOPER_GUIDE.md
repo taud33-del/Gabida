@@ -193,11 +193,11 @@ decision/      Determines the character's decision and attitude.
 prompt/        Builds the final prompt for the AI provider.
 api/           Abstract interface to LLM providers.
 memoire/       Manages lived memory — retention and forgetting.
+conversation/  Maintains the short-term exchange history.
 sauvegarde/    Persists and restores the complete session state.
 
 lecture/       Loads and validates character and world data files.
 axiomes/       The 20 universal architectural axioms of Gabida.
-langage/       Universal criteria language — types, families, values.
 ```
 
 The dependency direction is always downward. A module may import from `types/` and `constants/`. It may never import from another business module.

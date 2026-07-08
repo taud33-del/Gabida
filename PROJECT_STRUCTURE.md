@@ -41,12 +41,13 @@ This document explains how the Gabida repository is organised and where to look 
 | `prompt/` | Builds the contextualised prompt for the AI provider |
 | `api/` | Abstract interface to AI providers |
 | `memoire/` | Manages lived memory across turns and sessions |
+| `conversation/` | Maintains the short-term exchange history |
 | `sauvegarde/` | Persists and restores complete session state |
 | `types/` | Shared data contracts between all modules |
 | `constants/` | Official named values — no logic, no magic strings |
 | `lecture/` | Loads and validates character and world data files |
 | `axiomes/` | The universal architectural axioms of Gabida |
-| `langage/` | Universal criteria language — types, families, values |
+| `legacy/` | Archived, non-official code kept for architectural history (excluded from build and tests) — see `legacy/README.md` |
 | `.github/` | Issue templates, PR template, and community health files |
 
 ---
