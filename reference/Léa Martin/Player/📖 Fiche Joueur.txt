@@ -1,0 +1,434 @@
+📖 Fiche Joueur
+Chapitre 1 — Identité
+
+Question :
+
+Qui es-tu ?
+
+1. Nom
+
+Libre.
+
+Le joueur choisit son nom.
+
+2. Sexe / Genre
+
+Libre.
+
+Le joueur choisit son identité.
+
+3. Âge
+
+Libre.
+
+Le joueur définit son âge.
+
+4. Espèce
+
+Humaine
+
+Le genre Réaliste n'autorise aucune autre espèce.
+
+5. Profession
+
+Libre.
+
+Toutes les professions réalistes sont possibles.
+
+Cette information influence naturellement :
+
+les connaissances ;
+certains dialogues ;
+certaines compétences ;
+quelques réactions de Léa.
+6. Origine
+
+Libre.
+
+Pays, région ou culture d'origine.
+
+Cette information peut enrichir certaines conversations sans modifier le scénario principal.
+
+7. Apparence générale
+
+Libre.
+
+Le joueur imagine librement son apparence.
+
+Elle peut être décrite si nécessaire mais n'est jamais imposée.
+
+8. Particularité physique
+
+Libre.
+
+Exemples :
+
+barbe ;
+tatouage ;
+lunettes ;
+cicatrice ;
+boiterie légère.
+
+Ces éléments peuvent être mentionnés naturellement dans les interactions.
+
+9. Situation actuelle
+
+Passager survivant d'un crash aérien.
+
+Perdu dans une région isolée.
+
+Se retrouve aux côtés de Léa dès les premières minutes de l'aventure.
+
+10. Identité publique
+
+Au début de l'aventure, Léa ne connaît absolument rien du joueur.
+
+Pour elle, il est simplement :
+
+Un inconnu ayant survécu au crash.
+
+Son identité se construit progressivement au fil des échanges, des choix et des souvenirs partagés.
+
+Chapitre 2 — Contexte
+
+Question :
+
+Pourquoi es-tu ici ?
+
+1. Point de départ
+
+Le joueur est passager d'un vol commercial.
+
+Il voyage pour une raison qui lui est propre, définie lors de la création de son personnage.
+
+Le crash interrompt brutalement ce voyage.
+
+2. Connaissances initiales
+
+Au début de l'aventure, le joueur sait uniquement :
+
+qu'il vient de survivre à un crash ;
+qu'il est perdu ;
+que Léa est également vivante ;
+que les secours ne sont pas immédiatement visibles.
+
+Il ne connaît ni la région, ni la situation exacte.
+
+3. Relations connues
+
+Aucune.
+
+Le joueur ne connaît pas Léa.
+
+Léa ne connaît pas le joueur.
+
+Ils sont deux parfaits inconnus.
+
+4. Objectif de départ
+
+Survivre.
+
+Comprendre la situation.
+
+Trouver un moyen de rejoindre la civilisation.
+
+5. Situation personnelle
+
+Libre.
+
+Le joueur définit sa propre vie avant le crash :
+
+célibataire ou en couple ;
+avec ou sans enfants ;
+proche de sa famille ou non ;
+heureux ou en difficulté.
+
+Ces éléments peuvent influencer certains dialogues.
+
+6. Ressources disponibles
+
+Après le crash, le joueur peut conserver certains effets personnels.
+
+Par exemple :
+
+son sac ;
+son téléphone (fonctionnel ou non) ;
+des vêtements ;
+quelques objets personnels.
+
+Le contenu dépend du déroulement du crash.
+
+7. Contraintes de départ
+
+Le joueur débute dans une situation difficile :
+
+désorienté ;
+fatigué ;
+potentiellement blessé ;
+sans repères ;
+avec des ressources limitées.
+
+Ces contraintes sont communes à Léa.
+
+8. Déclencheur de l'aventure
+
+Le crash aérien.
+
+À partir de cet instant, le joueur n'est plus un simple passager.
+
+Il devient un survivant dont les choix influenceront non seulement sa propre histoire, mais aussi celle de Léa.
+
+Chapitre 3 — Progression
+
+Question :
+
+Qu'est-ce qui change durablement chez le joueur au cours de l'aventure ?
+
+1. Décisions importantes
+
+Toutes les décisions majeures du joueur sont conservées.
+
+Exemples :
+
+choix d'un itinéraire ;
+prise de risque ;
+promesses faites à Léa ;
+sacrifices ;
+refus ;
+mensonges ;
+priorités adoptées.
+
+Ces décisions peuvent influencer durablement la suite de l'aventure.
+
+2. Compétences acquises
+
+Le joueur peut développer de nouvelles compétences grâce à son expérience.
+
+Par exemple :
+
+meilleure orientation ;
+techniques de survie ;
+gestion des ressources ;
+coopération avec Léa.
+
+Ces apprentissages sont le résultat de ce qu'il vit, et non d'un système de niveaux.
+
+3. Connaissances acquises
+
+Au fil du voyage, le joueur découvre progressivement :
+
+la région ;
+l'environnement ;
+les habitudes de Léa ;
+son histoire ;
+ses valeurs ;
+les conséquences de certaines décisions.
+
+Toutes ces connaissances enrichissent naturellement les interactions.
+
+4. Objets importants
+
+Les objets ayant une véritable importance narrative sont mémorisés.
+
+Exemples :
+
+un couteau ;
+une carte ;
+une photo ;
+un souvenir du crash ;
+un objet appartenant à Léa.
+
+Leur valeur dépend davantage de leur histoire que de leur utilité.
+
+5. Secrets découverts
+
+Le joueur peut découvrir progressivement :
+
+des confidences de Léa ;
+certains aspects cachés de sa personnalité ;
+des éléments importants de son passé.
+
+Chaque découverte peut modifier sa perception de Léa.
+
+6. Relations créées
+
+La relation avec Léa évolue constamment.
+
+Elle peut devenir :
+
+distante ;
+prudente ;
+amicale ;
+profonde ;
+conflictuelle.
+
+Cette évolution est entièrement construite par les interactions.
+
+7. Évolution personnelle
+
+Le joueur peut lui aussi évoluer.
+
+L'aventure peut modifier :
+
+sa confiance en lui ;
+sa manière de communiquer ;
+sa façon de prendre des décisions ;
+sa vision des autres ;
+certaines de ses valeurs.
+8. Succès majeurs
+
+Les moments marquants sont conservés.
+
+Par exemple :
+
+réussir à survivre à une situation difficile ;
+sauver Léa ;
+retrouver la civilisation ;
+résoudre un problème complexe.
+
+Ils participent à la construction de son histoire.
+
+9. Échecs marquants
+
+Les erreurs importantes restent également présentes.
+
+Exemples :
+
+une mauvaise décision ;
+une promesse non tenue ;
+une perte importante ;
+un conflit.
+
+Ces événements peuvent influencer durablement le personnage.
+
+10. Conséquences permanentes
+
+Certaines décisions produisent des effets durables.
+
+Par exemple :
+
+la confiance gagnée ou perdue ;
+des souvenirs communs ;
+une blessure permanente ;
+une nouvelle manière de voir Léa ;
+une évolution personnelle.
+
+Rien n'est oublié simplement parce que le temps passe.
+
+Chapitre 4 — Particularités
+
+Question :
+
+Qu'est-ce qui rend ce joueur unique ?
+
+1. Talents
+
+Le joueur définit librement les talents de son personnage.
+
+Ils peuvent être :
+
+physiques ;
+intellectuels ;
+techniques ;
+artistiques ;
+sociaux.
+
+Les talents influencent certaines situations sans rendre le personnage exceptionnel.
+
+2. Faiblesses
+
+Le joueur définit également ses limites.
+
+Exemples :
+
+manque de confiance ;
+mauvaise condition physique ;
+difficulté à communiquer ;
+impulsivité ;
+peur du vide.
+
+Ces faiblesses enrichissent les interactions et les décisions.
+
+3. Passions
+
+Les centres d'intérêt du joueur peuvent apparaître naturellement dans les dialogues.
+
+Exemples :
+
+photographie ;
+randonnée ;
+musique ;
+lecture ;
+cuisine ;
+sport.
+
+Ils servent principalement à personnaliser les conversations avec Léa.
+
+4. Habitudes
+
+Le personnage peut avoir ses propres habitudes.
+
+Par exemple :
+
+toujours vérifier son matériel ;
+observer avant de parler ;
+plaisanter lorsqu'il est stressé ;
+marcher rapidement ;
+prendre des notes.
+
+Ces habitudes participent à son identité.
+
+5. Valeurs particulières
+
+Le joueur choisit les principes qui guident naturellement son personnage.
+
+Exemples :
+
+honnêteté ;
+liberté ;
+famille ;
+justice ;
+entraide ;
+autonomie.
+
+Ces valeurs influencent ses décisions tout au long de l'aventure.
+
+6. Capacités spéciales
+
+Dans le genre Réaliste, aucune capacité surnaturelle n'existe.
+
+Les capacités particulières correspondent uniquement aux compétences réalistes du personnage :
+
+parler une langue étrangère ;
+pratiquer l'escalade ;
+cuisiner ;
+conduire certains véhicules ;
+avoir des connaissances techniques.
+7. Limites personnelles
+
+Chaque joueur possède des limites qu'il refuse de franchir.
+
+Par exemple :
+
+abandonner quelqu'un ;
+mentir ;
+voler ;
+mettre une autre personne volontairement en danger.
+
+Ces limites donnent de la cohérence au personnage incarné.
+
+8. Élément unique
+
+Chaque joueur apporte quelque chose que personne d'autre ne possède.
+
+Il peut s'agir :
+
+d'une manière de parler ;
+d'un humour particulier ;
+d'une façon de réfléchir ;
+d'une expérience de vie ;
+d'une qualité humaine.
+
+Cet élément n'est pas imposé.
+
+Il émerge naturellement de la création du personnage et de la manière dont le joueur l'incarne.
