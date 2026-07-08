@@ -12,6 +12,8 @@
     "jest": "^29.7.0"
   },
   "jest": {
-    "transform": {}
+    "transform": {},
+    "testPathIgnorePatterns": ["/node_modules/", "/legacy/"],
+    "modulePathIgnorePatterns": ["/legacy/"]
   }
 }

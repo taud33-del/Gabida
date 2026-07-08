@@ -130,14 +130,14 @@ Moteur/
 ├── prompt/        Builds the final prompt for the AI provider.
 ├── api/           Abstract interface to any LLM. Provider-agnostic.
 ├── memoire/       Manages lived memory — retention and forgetting.
+├── conversation/  Maintains the short-term exchange history.
 ├── sauvegarde/    Persists and restores the complete session state.
 │
 ├── types/         Shared data contracts between all modules.
 ├── constants/     Official enumerations. No logic. No magic strings.
 ├── lecture/       Loads and validates character and world data files.
 │
-├── axiomes/       The 20 universal architectural axioms of Gabida.
-└── langage/       Universal criteria language — types, families, values.
+└── axiomes/       The 20 universal architectural axioms of Gabida.
 ```
 
 Every module has a single responsibility. Every module is independently testable. Every module communicates exclusively through official types.
