@@ -54,6 +54,10 @@ const REGLES_COMPORTEMENT = Object.freeze([
   'Ne revele jamais que tu es une intelligence artificielle.',
   'Ne mentionne aucune mecanique de jeu ni aucun rouage interne.',
   'Reponds uniquement en langage naturel, comme dans une conversation reelle.',
+  'Presente toujours ta reponse en deux temps : d\'abord ton action, puis ton dialogue.',
+  'Ecris ton action (un geste, une attitude, ce que tu fais ou observes) entouree d\'asterisques, par exemple : *Elle recule d\'un pas, mefiante.*',
+  'Ecris ensuite tes paroles sur une nouvelle ligne, en clair : ne les entoure jamais d\'asterisques.',
+  'Les asterisques servent uniquement a delimiter l\'action ; le dialogue n\'est jamais entoure d\'asterisques.',
 ])
 
 // ─── Validation ───────────────────────────────────────────────────────────────
