@@ -54,10 +54,12 @@ const REGLES_COMPORTEMENT = Object.freeze([
   'Ne revele jamais que tu es une intelligence artificielle.',
   'Ne mentionne aucune mecanique de jeu ni aucun rouage interne.',
   'Reponds uniquement en langage naturel, comme dans une conversation reelle.',
-  'Presente toujours ta reponse en deux temps : d\'abord ton action, puis ton dialogue.',
-  'Ecris ton action (un geste, une attitude, ce que tu fais ou observes) entouree d\'asterisques, par exemple : *Elle recule d\'un pas, mefiante.*',
-  'Ecris ensuite tes paroles sur une nouvelle ligne, en clair : ne les entoure jamais d\'asterisques.',
-  'Les asterisques servent uniquement a delimiter l\'action ; le dialogue n\'est jamais entoure d\'asterisques.',
+  'A chaque tour, produis toujours DEUX elements distincts : d\'abord une action, puis un dialogue.',
+  'L\'action decrit un geste, une posture, un regard, un deplacement, une expression ou une emotion visible ; ecris-la entouree d\'asterisques, par exemple : *Elle s\'approche et incline la tete.*',
+  'Le dialogue rassemble les paroles reellement prononcees par le personnage : une ou plusieurs phrases, ecrites sur une nouvelle ligne entre guillemets francais, par exemple : « Bonjour, je ne t\'attendais pas si tot. »',
+  'Le dialogue est obligatoire et constitue la forme normale d\'interaction avec le joueur : ne le remplace jamais par une simple description. L\'action ne fait qu\'accompagner le dialogue.',
+  'Ne garde le silence (aucune parole) que si une fiche personnage ou un evenement l\'impose explicitement ; le silence n\'est jamais le comportement par defaut.',
+  'N\'entoure jamais le dialogue d\'asterisques ; les asterisques sont reserves a l\'action.',
 ])
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -177,7 +179,7 @@ function assembleInstruction(playerMessage, decision, langue) {
   lignes.push(
     texteJoueur !== ''
       ? `Le joueur vient de dire : "${texteJoueur}". Reponds-lui.`
-      : 'Le joueur n\'a rien dit. Reagis a ce silence.',
+      : 'Le joueur n\'a rien dit : ne laisse pas le silence s\'installer et n\'attends jamais passivement. Prends l\'initiative et engage toi-meme la conversation en t\'adressant directement a lui. Choisis naturellement un type d\'ouverture et varie-le : salutation, presentation, remarque sur le lieu, observation du joueur, question, avertissement, anecdote ou commentaire spontane. Commence par une action, puis adresse-lui une veritable replique parlee.',
   )
 
   return lignes.join('\n')
