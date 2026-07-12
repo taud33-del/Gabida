@@ -76,6 +76,10 @@ function construireCorps(messages, parametres) {
 function extraireReponseRaw(data) {
   const texte = data.choices?.[0]?.message?.content ?? ''
 
+  console.log('========== RAW OPENAI ==========')
+  console.log(texte)
+  console.log('================================')
+
   return {
     texte,
     tokensEntree  : data.usage?.prompt_tokens     ?? 0,
