@@ -102,7 +102,6 @@ function extraireReponseRaw(data) {
  * @returns {Promise<import('../index.js').ReponseRaw>}
  */
 export async function openaiAdapter(messages, parametres, config) {
-  throw new Error("OPENAI_PROVIDER_PR30");
   const messagesConverts = convertirMessages(messages)
   const corps            = construireCorps(messagesConverts, parametres)
 
