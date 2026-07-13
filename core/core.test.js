@@ -65,9 +65,10 @@ function fabriqueEtat(overrides = {}) {
   }
 }
 
-function fabriqueReponseIA(texte = 'Hmm.') {
+function fabriqueReponseIA(dialogue = 'Hmm.', action = '') {
   return {
-    texte,
+    action,
+    dialogue,
     meta : { provider: 'test', tokensEntree: 10, tokensSortie: 5, dureeMs: 100 },
   }
 }
@@ -168,7 +169,9 @@ describe('mettreAJourEtat', () => {
     expect(result.historique[0].role).toBe(ROLES_MESSAGE.USER)
     expect(result.historique[0].contenu).toBe('Bonjour Aldric.')
     expect(result.historique[1].role).toBe(ROLES_MESSAGE.ASSISTANT)
-    expect(result.historique[1].contenu).toBe('Bien le bonjour.')
+    expect(result.historique[1].contenu).toBe(
+      JSON.stringify({ action: '', dialogue: 'Bien le bonjour.' })
+    )
   })
 
   test('conserve l historique precedent', () => {
@@ -223,7 +226,8 @@ describe('construireResultat', () => {
       miseAJourMemoire : fabriqueMiseAJourMemoire(),
     }
     const result = construireResultat(reponseIA, etatMisAJour, pipeline)
-    expect(result.reponse).toBe('Reponse.')
+    expect(result.action).toBe('')
+    expect(result.dialogue).toBe('Reponse.')
     expect(result.etatMisAJour).toBe(etatMisAJour)
     expect(result.evenement).toBe(pipeline.evenement)
     expect(result.filtreRelationnel).toBe(pipeline.filtreRelationnel)
@@ -251,7 +255,8 @@ const PROVIDER_TEST = 'core-integration-test'
 
 beforeAll(() => {
   registerProvider(PROVIDER_TEST, async () => ({
-    texte        : 'Reponse mock.',
+    action       : 'Le personnage observe le joueur.',
+    dialogue     : 'Reponse mock.',
     tokensEntree : 10,
     tokensSortie : 5,
   }))
@@ -265,7 +270,8 @@ describe('executerPipeline — propagation des erreurs', () => {
       fabriquePlayerMessage(), fabriqueFiches(), fabriqueEtat(), providerConfig
     )
     expect(result).toBeDefined()
-    expect(result.reponseIA.texte).toBe('Reponse mock.')
+    expect(result.reponseIA.action).toBe('Le personnage observe le joueur.')
+    expect(result.reponseIA.dialogue).toBe('Reponse mock.')
   })
 
   test('leve ErreurProvider si le provider n est pas enregistre', async () => {

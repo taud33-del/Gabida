@@ -52,7 +52,8 @@ const configMock = {
 }
 
 const reponseRawMock = {
-  texte         : 'Je suis Aldric.',
+  action        : 'Aldric incline la tete.',
+  dialogue      : 'Je suis Aldric.',
   tokensEntree  : 42,
   tokensSortie  : 8,
 }
@@ -160,12 +161,19 @@ describe('normaliserReponse', () => {
     const ctx = construireCtxMock()
     const reponse = normaliserReponse(ctx, reponseRawMock)
 
-    expect(reponse.texte).toBe(reponseRawMock.texte)
+    expect(reponse.action).toBe(reponseRawMock.action)
+    expect(reponse.dialogue).toBe(reponseRawMock.dialogue)
     expect(reponse.meta.provider).toBe(configMock.provider)
     expect(reponse.meta.tokensEntree).toBe(reponseRawMock.tokensEntree)
     expect(reponse.meta.tokensSortie).toBe(reponseRawMock.tokensSortie)
     expect(typeof reponse.meta.dureeMs).toBe('number')
     expect(reponse.meta.dureeMs).toBeGreaterThanOrEqual(0)
+  })
+
+  test('rejette une reponse sans le contrat action/dialogue', () => {
+    const ctx = construireCtxMock()
+    expect(() => normaliserReponse(ctx, { texte: 'ancien format' }))
+      .toThrow(TypeError)
   })
 
   test('calcule dureeMs depuis ctx.debutMs', () => {
@@ -197,8 +205,8 @@ describe('registerProvider', () => {
   })
 
   test('leve ProviderAlreadyRegisteredError si le nom existe deja (aucun ecrasement)', () => {
-    const adaptateur1 = async () => ({ texte: 'v1', tokensEntree: 1, tokensSortie: 1 })
-    const adaptateur2 = async () => ({ texte: 'v2', tokensEntree: 2, tokensSortie: 2 })
+    const adaptateur1 = async () => ({ action: '', dialogue: 'v1', tokensEntree: 1, tokensSortie: 1 })
+    const adaptateur2 = async () => ({ action: '', dialogue: 'v2', tokensEntree: 2, tokensSortie: 2 })
     registerProvider('duplicate-test', adaptateur1)
     expect(() => {
       registerProvider('duplicate-test', adaptateur2)
@@ -233,7 +241,8 @@ describe('callProvider', () => {
     const config  = { ...configMock, provider: NOM_PROVIDER_TEST }
     const reponse = await callProvider(promptVide, config)
 
-    expect(reponse.texte).toBe(reponseRawMock.texte)
+    expect(reponse.action).toBe(reponseRawMock.action)
+    expect(reponse.dialogue).toBe(reponseRawMock.dialogue)
     expect(reponse.meta.provider).toBe(NOM_PROVIDER_TEST)
     expect(typeof reponse.meta.dureeMs).toBe('number')
     expect(reponse.meta.tokensEntree).toBe(reponseRawMock.tokensEntree)

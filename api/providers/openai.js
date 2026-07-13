@@ -62,6 +62,7 @@ function construireCorps(messages, parametres) {
     model    : parametres.modele,
     messages,
     ...parametres.options,
+    response_format: { type: 'json_object' },
   }
 }
 
@@ -74,14 +75,37 @@ function construireCorps(messages, parametres) {
  * @returns {import('../index.js').ReponseRaw}
  */
 function extraireReponseRaw(data) {
-  const texte = data.choices?.[0]?.message?.content ?? ''
+  const contenu = data.choices?.[0]?.message?.content ?? ''
 
   console.log('========== RAW OPENAI ==========')
-  console.log(texte)
+  console.log(contenu)
   console.log('================================')
 
+  let resultat
+  try {
+    resultat = JSON.parse(contenu)
+  } catch (erreur) {
+    throw new Error(`api.openaiAdapter : reponse JSON invalide — ${erreur.message}`)
+  }
+
+  const cles = resultat && !Array.isArray(resultat)
+    ? Object.keys(resultat).sort()
+    : []
+  if (
+    cles.length !== 2 ||
+    cles[0] !== 'action' ||
+    cles[1] !== 'dialogue' ||
+    typeof resultat.action !== 'string' ||
+    typeof resultat.dialogue !== 'string'
+  ) {
+    throw new Error(
+      'api.openaiAdapter : la reponse doit contenir exactement deux chaines "action" et "dialogue".'
+    )
+  }
+
   return {
-    texte,
+    action        : resultat.action,
+    dialogue      : resultat.dialogue,
     tokensEntree  : data.usage?.prompt_tokens     ?? 0,
     tokensSortie  : data.usage?.completion_tokens ?? 0,
   }

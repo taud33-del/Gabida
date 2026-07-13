@@ -41,20 +41,28 @@ function normaliserHistorique(historique) {
 }
 
 /**
- * Valide qu'un message porte un champ texte de type string.
- * Le contenu n'est jamais interprete : une chaine vide est acceptee telle quelle.
+ * Valide les donnees du joueur et de la reponse structuree.
+ * Les chaines vides sont acceptees telles quelles.
  *
- * @param {{ texte: string }} message
- * @param {string} nom -- nom du parametre pour le message d'erreur
+ * @param {{ texte: string }} playerMessage
+ * @param {{ action: string, dialogue: string }} reponseIA
  * @throws {InvalidMessageError}
  */
-function validerMessage(message, nom) {
-  if (message === undefined || message === null || typeof message !== 'object') {
-    throw new InvalidMessageError(`conversation.ajouterEchange : ${nom} est absent.`)
+function validerMessages(playerMessage, reponseIA) {
+  if (playerMessage === undefined || playerMessage === null || typeof playerMessage !== 'object') {
+    throw new InvalidMessageError('conversation.ajouterEchange : playerMessage est absent.')
   }
-  if (typeof message.texte !== 'string') {
+  if (typeof playerMessage.texte !== 'string') {
     throw new InvalidMessageError(
-      `conversation.ajouterEchange : ${nom}.texte doit etre une chaine de caracteres.`
+      'conversation.ajouterEchange : playerMessage.texte doit etre une chaine de caracteres.'
+    )
+  }
+  if (reponseIA === undefined || reponseIA === null || typeof reponseIA !== 'object') {
+    throw new InvalidMessageError('conversation.ajouterEchange : reponseIA est absent.')
+  }
+  if (typeof reponseIA.action !== 'string' || typeof reponseIA.dialogue !== 'string') {
+    throw new InvalidMessageError(
+      'conversation.ajouterEchange : reponseIA.action et reponseIA.dialogue doivent etre des chaines de caracteres.'
     )
   }
 }
@@ -73,18 +81,20 @@ function validerMessage(message, nom) {
  * @param {import('../types/Prompt.js').MessageHistorique[]} historique
  *   Historique courant (peut etre vide, undefined ou null).
  * @param {{ texte: string }} playerMessage -- message brut du joueur
- * @param {{ texte: string }} reponseIA     -- reponse produite par le provider
+ * @param {{ action: string, dialogue: string }} reponseIA -- reponse produite par le provider
  * @returns {import('../types/Prompt.js').MessageHistorique[]} nouvel historique
  * @throws {InvalidHistoriqueError}
  * @throws {InvalidMessageError}
  */
 export function ajouterEchange(historique, playerMessage, reponseIA) {
   const historiqueCourant = normaliserHistorique(historique)
-  validerMessage(playerMessage, 'playerMessage')
-  validerMessage(reponseIA, 'reponseIA')
+  validerMessages(playerMessage, reponseIA)
 
-  const messageUser      = { role: ROLES_MESSAGE.USER,      contenu: playerMessage.texte }
-  const messageAssistant = { role: ROLES_MESSAGE.ASSISTANT, contenu: reponseIA.texte }
+  const messageUser = { role: ROLES_MESSAGE.USER, contenu: playerMessage.texte }
+  const messageAssistant = {
+    role: ROLES_MESSAGE.ASSISTANT,
+    contenu: JSON.stringify({ action: reponseIA.action, dialogue: reponseIA.dialogue }),
+  }
 
   return [...historiqueCourant, messageUser, messageAssistant]
 }

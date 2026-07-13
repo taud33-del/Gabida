@@ -64,9 +64,11 @@
  * Retourné par core.runCycle à l'application hôte.
  * Toutes les propriétés sont obligatoires.
  *
- * @property {string} reponse
- *   [obligatoire] Texte de réponse du personnage pour ce tour.
- *   Produit à partir de ReponseIA.texte. C'est la seule valeur narrative exposée à l'extérieur.
+ * @property {string} action
+ *   [obligatoire] Action narrative produite par le personnage pour ce tour.
+ *
+ * @property {string} dialogue
+ *   [obligatoire] Paroles prononcées par le personnage pour ce tour.
  *
  * @property {Etat} etatMisAJour
  *   [obligatoire] Nouvel état complet de la session après ce tour.

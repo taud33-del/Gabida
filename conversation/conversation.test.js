@@ -23,7 +23,7 @@ import { ROLES_MESSAGE } from '../constants/RolesMessage.js'
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 const playerMessage = { texte: 'Bonjour Aldric.' }
-const reponseIA      = { texte: 'Bonjour, voyageur.' }
+const reponseIA      = { action: 'Aldric incline la tete.', dialogue: 'Bonjour, voyageur.' }
 
 // ─── Comportement de base ──────────────────────────────────────────────────────
 
@@ -31,8 +31,8 @@ describe('ajouterEchange — historique vide', () => {
   test('depuis [] retourne exactement [user, assistant]', () => {
     const resultat = ajouterEchange([], playerMessage, reponseIA)
     expect(resultat).toEqual([
-      { role: ROLES_MESSAGE.USER,      contenu: 'Bonjour Aldric.' },
-      { role: ROLES_MESSAGE.ASSISTANT, contenu: 'Bonjour, voyageur.' },
+      { role: ROLES_MESSAGE.USER, contenu: 'Bonjour Aldric.' },
+      { role: ROLES_MESSAGE.ASSISTANT, contenu: JSON.stringify(reponseIA) },
     ])
   })
 
@@ -57,7 +57,7 @@ describe('ajouterEchange — historique non vide', () => {
       { role: ROLES_MESSAGE.USER,      contenu: 'Premier message.' },
       { role: ROLES_MESSAGE.ASSISTANT, contenu: 'Premiere reponse.' },
       { role: ROLES_MESSAGE.USER,      contenu: 'Bonjour Aldric.' },
-      { role: ROLES_MESSAGE.ASSISTANT, contenu: 'Bonjour, voyageur.' },
+      { role: ROLES_MESSAGE.ASSISTANT, contenu: JSON.stringify(reponseIA) },
     ])
   })
 
@@ -91,9 +91,9 @@ describe('ajouterEchange — conservation exacte du contenu', () => {
 
   test('ne resume ni ne tronque un contenu long', () => {
     const long = 'x'.repeat(5000)
-    const resultat = ajouterEchange([], { texte: long }, { texte: long })
+    const resultat = ajouterEchange([], { texte: long }, { action: long, dialogue: long })
     expect(resultat[0].contenu).toBe(long)
-    expect(resultat[1].contenu).toBe(long)
+    expect(resultat[1].contenu).toBe(JSON.stringify({ action: long, dialogue: long }))
   })
 })
 
@@ -125,6 +125,11 @@ describe('ajouterEchange — erreurs typees', () => {
 
   test('InvalidMessageError si playerMessage.texte n est pas une string', () => {
     expect(() => ajouterEchange([], { texte: 42 }, reponseIA)).toThrow(InvalidMessageError)
+  })
+
+  test('InvalidMessageError si reponseIA ne respecte pas le contrat', () => {
+    expect(() => ajouterEchange([], playerMessage, { texte: 'ancien format' }))
+      .toThrow(InvalidMessageError)
   })
 
   test('les erreurs specialisees heritent de ConversationError', () => {

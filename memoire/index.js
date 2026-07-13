@@ -63,7 +63,8 @@ const CAPACITE_MEMOIRE_DEFAUT = 20
  * @property {string} objectifDecision     -- Raccourci : decision.objectifImmediat
  * @property {string} directionNarrative   -- Raccourci : decision.directionNarrative
  * @property {string[]} criteresDecision   -- Raccourci : decision.justification.criteresActifs
- * @property {string} texteReponse         -- Raccourci : reponseIA.texte
+ * @property {string} actionReponse        -- Raccourci : reponseIA.action
+ * @property {string} dialogueReponse      -- Raccourci : reponseIA.dialogue
  * @property {number} tourCourant          -- Raccourci : etat.tourCourant
  * @property {import('./types.js').Souvenir[]} souvenirsCourants -- etat.memoireVecue?.souvenirs ?? []
  * @property {number} capaciteMax          -- fiches.personnage?.capaciteMemoire ?? CAPACITE_MEMOIRE_DEFAUT
@@ -375,7 +376,8 @@ export function updateMemory(evenement, decision, reponseIA, fiches, etat) {
     directionNarrative  : decision.directionNarrative,
     criteresDecision    : decision.justification?.criteresActifs ?? [],
 
-    texteReponse        : reponseIA.texte,
+    actionReponse       : reponseIA.action,
+    dialogueReponse     : reponseIA.dialogue,
 
     tourCourant         : etat.tourCourant,
     souvenirsCourants   : etat.memoireVecue?.souvenirs ?? [],

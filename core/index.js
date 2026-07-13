@@ -100,8 +100,11 @@ export class ErreurProvider extends ErreurGabida {
  * Retourne par executeTurn a l'application hote.
  * Toutes les proprietes sont obligatoires.
  *
- * @property {string} reponse
- *   Texte produit par le LLM pour ce tour. Seule valeur narrative exposee.
+ * @property {string} action
+ *   Action narrative produite par le personnage.
+ *
+ * @property {string} dialogue
+ *   Paroles prononcees par le personnage.
  *
  * @property {import('../types/Etat.js').Etat} etatMisAJour
  *   Nouvel etat complet apres mise a jour memoire, historique et tour.
@@ -119,7 +122,7 @@ export class ErreurProvider extends ErreurGabida {
  *   Resultat du module decision/.
  *
  * @property {import('../types/ReponseIA.js').ReponseIA} reponseIA
- *   Resultat brut du module api/ (texte + meta transport).
+ *   Resultat structure du module api/ (action, dialogue + meta transport).
  *
  * @property {import('../memoire/types.js').MiseAJourMemoire} miseAJourMemoire
  *   Resultat du module memoire/ (ajoutes, oublies, conserves).
@@ -281,7 +284,8 @@ export function mettreAJourEtat(etat, reponseIA, miseAJourMemoire, playerMessage
  */
 export function construireResultat(reponseIA, etatMisAJour, pipeline) {
   return {
-    reponse          : reponseIA.texte,
+    action            : reponseIA.action,
+    dialogue          : reponseIA.dialogue,
     etatMisAJour,
     evenement        : pipeline.evenement,
     filtreRelationnel: pipeline.filtreRelationnel,
