@@ -45,7 +45,7 @@ describe('createSimulationProvider', () => {
   test('mode par defaut = SUCCESS', async () => {
     const adapter  = createSimulationProvider()
     const reponse  = await adapter(messages, parametres, config)
-    expect(reponse.texte).toContain('[simulation:success]')
+    expect(reponse.dialogue).toContain('[simulation:success]')
   })
 
   test('leve SimulationProviderError pour un mode inconnu', () => {
@@ -66,14 +66,16 @@ describe('determinisme', () => {
 
   test('conforme au contrat ReponseRaw', async () => {
     const reponse = await simulationProvider(messages, parametres, config)
-    expect(typeof reponse.texte).toBe('string')
+    expect(typeof reponse.action).toBe('string')
+    expect(typeof reponse.dialogue).toBe('string')
     expect(typeof reponse.tokensEntree).toBe('number')
     expect(typeof reponse.tokensSortie).toBe('number')
   })
 
   test('la reponse SUCCESS derive de l instruction', async () => {
     const reponse = await simulationProvider(messages, parametres, config)
-    expect(reponse.texte).toBe('[simulation:success] Quel est ton nom ?')
+    expect(reponse.action).toBe('')
+    expect(reponse.dialogue).toBe('[simulation:success] Quel est ton nom ?')
   })
 })
 
@@ -83,7 +85,8 @@ describe('modes', () => {
   test('EMPTY produit un texte vide', async () => {
     const adapter = createSimulationProvider({ mode: SIMULATION_MODES.EMPTY })
     const reponse = await adapter(messages, parametres, config)
-    expect(reponse.texte).toBe('')
+    expect(reponse.action).toBe('')
+    expect(reponse.dialogue).toBe('')
     expect(reponse.tokensSortie).toBe(0)
   })
 
@@ -91,8 +94,9 @@ describe('modes', () => {
     const adapter = createSimulationProvider({ mode: SIMULATION_MODES.REFUSAL })
     const r1 = await adapter(messages, parametres, config)
     const r2 = await adapter(messages, parametres, config)
-    expect(r1.texte).toBe(r2.texte)
-    expect(r1.texte.length).toBeGreaterThan(0)
+    expect(r1.action).toBe(r2.action)
+    expect(r1.dialogue).toBe(r2.dialogue)
+    expect(r1.dialogue.length).toBeGreaterThan(0)
   })
 
   test('ERROR leve une SimulationProviderError', async () => {
@@ -142,9 +146,10 @@ describe('callProvider avec le SimulationProvider', () => {
     const prompt  = { systeme: 'Tu es Aldric.', historique: [], instruction: 'Quel est ton nom ?' }
     const r1 = await callProvider(prompt, cfg)
     const r2 = await callProvider(prompt, cfg)
-    expect(r1.texte).toBe(r2.texte)
+    expect(r1.action).toBe(r2.action)
+    expect(r1.dialogue).toBe(r2.dialogue)
     expect(r1.meta.provider).toBe('sim-callprovider')
-    expect(r1.texte).toContain('[simulation:success]')
+    expect(r1.dialogue).toContain('[simulation:success]')
   })
 
   test('propage la SimulationProviderError du mode ERROR', async () => {

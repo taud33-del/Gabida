@@ -24,8 +24,8 @@
  *   - ROLES_MESSAGE.ASSISTANT : message émis par le personnage (réponse de l'IA).
  *
  * @property {string} contenu
- *   [obligatoire] Texte brut du message.
- *   Ne doit pas être vide.
+ *   [obligatoire] Contenu sérialisé du message.
+ *   Les réponses assistant utilisent l'objet JSON canonique `action` / `dialogue`.
  */
 
 /**

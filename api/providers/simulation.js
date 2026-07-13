@@ -41,6 +41,7 @@ export const SIMULATION_MODES = Object.freeze({
 })
 
 const REFUSAL_TEXT = '[simulation] Requete refusee.'
+const EMPTY_ACTION = ''
 
 // ─── Erreur typee dediee ──────────────────────────────────────────────────────
 
@@ -94,16 +95,21 @@ function construireReponse(mode, messages) {
   const tokensEntree = compterCaracteres(messages)
 
   if (mode === SIMULATION_MODES.EMPTY) {
-    return { texte: '', tokensEntree, tokensSortie: 0 }
+    return { action: EMPTY_ACTION, dialogue: '', tokensEntree, tokensSortie: 0 }
   }
 
   if (mode === SIMULATION_MODES.REFUSAL) {
-    return { texte: REFUSAL_TEXT, tokensEntree, tokensSortie: REFUSAL_TEXT.length }
+    return {
+      action: EMPTY_ACTION,
+      dialogue: REFUSAL_TEXT,
+      tokensEntree,
+      tokensSortie: REFUSAL_TEXT.length,
+    }
   }
 
   // SUCCESS : echo deterministe de l'instruction.
-  const texte = `[simulation:success] ${dernierMessageUtilisateur(messages)}`
-  return { texte, tokensEntree, tokensSortie: texte.length }
+  const dialogue = `[simulation:success] ${dernierMessageUtilisateur(messages)}`
+  return { action: EMPTY_ACTION, dialogue, tokensEntree, tokensSortie: dialogue.length }
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────────

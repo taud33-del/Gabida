@@ -188,6 +188,20 @@ describe('buildPrompt : contrat de sortie', () => {
     expect(prompt.instruction).toContain('Peux-tu m\'aider ?')
   })
 
+  test('impose le contrat JSON action/dialogue sans convention Markdown', () => {
+    const prompt = buildPrompt(
+      makePlayerMessage(),
+      makeDecision(),
+      makeRessenti(),
+      makeFiches(),
+      makeEtat(),
+    )
+    expect(prompt.systeme).toContain('objet JSON valide')
+    expect(prompt.systeme).toContain('"action"')
+    expect(prompt.systeme).toContain('"dialogue"')
+    expect(prompt.systeme).not.toContain('asterisque')
+  })
+
   test('gere le silence quand le message joueur est vide', () => {
     const prompt = buildPrompt(
       makePlayerMessage(''),

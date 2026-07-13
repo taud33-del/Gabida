@@ -59,30 +59,33 @@ function creerEtatInitial(sessionId) {
 }
 
 /**
- * formaterDialogue(nomPersonnage, texteJoueur, reponse)
+ * formaterDialogue(nomPersonnage, texteJoueur, action, dialogue)
  *
  * Pure. Met en forme l'échange sous la forme demandée :
  *   Player :
  *   <texteJoueur>
  *
  *   <nomPersonnage> :
- *   <reponse>
+ *   <action>
+ *   <dialogue>
  *
  * Le nom du locuteur provient exclusivement des fiches (aucun nom codé en dur).
  *
  * @param {string} nomPersonnage
  * @param {string} texteJoueur
- * @param {string} reponse
+ * @param {string} action
+ * @param {string} dialogue
  * @returns {string}
  */
-export function formaterDialogue(nomPersonnage, texteJoueur, reponse) {
+export function formaterDialogue(nomPersonnage, texteJoueur, action, dialogue) {
   return [
     'Player :',
     texteJoueur,
     '',
     `${nomPersonnage} :`,
-    reponse,
-  ].join('\n')
+    action,
+    dialogue,
+  ].filter((ligne, index) => ligne !== '' || index === 2).join('\n')
 }
 
 /**
@@ -120,7 +123,14 @@ export async function main() {
   const resultat = await executeTurn(playerMessage, providerConfig, fiches, etat)
 
   // 5. Dialogue réel — nom issu de la fiche, réponse issue du pipeline
-  console.log(formaterDialogue(fiches.personnage.nom, playerMessage.texte, resultat.reponse))
+  console.log(
+    formaterDialogue(
+      fiches.personnage.nom,
+      playerMessage.texte,
+      resultat.action,
+      resultat.dialogue
+    )
+  )
 }
 
 // Exécution uniquement lorsque le fichier est lancé directement (npm start).

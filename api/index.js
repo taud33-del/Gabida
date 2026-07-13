@@ -98,7 +98,8 @@ const _registre = new ProviderRegistry()
  * Reponse normalisee retournee par tout adaptateur.
  * Format interne commun — independant du provider.
  *
- * @property {string} texte          -- Texte brut produit par le LLM
+ * @property {string} action         -- Action narrative produite par le personnage
+ * @property {string} dialogue       -- Paroles prononcees par le personnage
  * @property {number} tokensEntree   -- Tokens envoyes
  * @property {number} tokensSortie   -- Tokens recus
  */
@@ -195,9 +196,16 @@ export async function executerAppel(ctx, messages, parametres) {
  * @returns {import('../types/ReponseIA.js').ReponseIA}
  */
 export function normaliserReponse(ctx, reponseRaw) {
+  if (typeof reponseRaw.action !== 'string' || typeof reponseRaw.dialogue !== 'string') {
+    throw new TypeError(
+      'api.normaliserReponse : action et dialogue doivent etre des chaines de caracteres.'
+    )
+  }
+
   return {
-    texte : reponseRaw.texte,
-    meta  : {
+    action   : reponseRaw.action,
+    dialogue : reponseRaw.dialogue,
+    meta     : {
       provider      : ctx.nomProvider,
       tokensEntree  : reponseRaw.tokensEntree,
       tokensSortie  : reponseRaw.tokensSortie,

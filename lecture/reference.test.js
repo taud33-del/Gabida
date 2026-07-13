@@ -137,7 +137,8 @@ describe('pipeline complet avec le cas de référence', () => {
     const providerConfig = { provider: PROVIDERS.SIMULATION, cleApi: 'x', modele: 'sim-model' }
 
     const resultat = await executeTurn(playerMessage, providerConfig, fiches, etat)
-    expect(typeof resultat.reponse).toBe('string')
+    expect(typeof resultat.action).toBe('string')
+    expect(typeof resultat.dialogue).toBe('string')
     expect(resultat.etatMisAJour.tourCourant).toBe(2)
     expect(resultat.etatMisAJour.historique).toHaveLength(2)
   })

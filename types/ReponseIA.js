@@ -34,14 +34,15 @@
 /**
  * @typedef {object} ReponseIA
  *
- * Réponse brute reçue du LLM après envoi du Prompt.
- * Ce type ne contient aucune interprétation — uniquement le texte brut et les métadonnées de transport.
+ * Réponse structurée reçue du LLM après envoi du Prompt.
+ * L'adaptateur provider valide le contrat canonique avant de construire ce type.
  * Toutes les propriétés sont obligatoires.
  *
- * @property {string} texte
- *   [obligatoire] Texte brut produit par le LLM.
- *   Ne doit pas être vide si le transport a réussi.
- *   Aucune interprétation, aucun nettoyage appliqué à ce stade.
+ * @property {string} action
+ *   [obligatoire] Action narrative produite par le personnage.
+ *
+ * @property {string} dialogue
+ *   [obligatoire] Paroles prononcées par le personnage.
  *
  * @property {MetaTransport} meta
  *   [obligatoire] Métadonnées techniques du transport pour ce tour.
