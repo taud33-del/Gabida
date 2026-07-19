@@ -1,9 +1,10 @@
 # Architecture Gabida V2 — Modèle multi-participants
 
-> **Statut : Phase 1 — modèle de données uniquement.**
-> Ce document décrit les *contrats de données* introduits en Phase 1. Aucun
-> comportement, pipeline, orchestrateur ni logique de perception n'est ajouté à
-> ce stade.
+> **Statut : Phase 2 — pipeline sur participant unique.**
+> La Phase 1 a introduit les *contrats de données* (§1–9). La Phase 2 (§10)
+> exécute le pipeline cognitif V1 existant pour **un seul** participant autonome,
+> sans le dupliquer et sans changer le comportement. Aucun orchestrateur
+> multi-participants ni moteur de perception n'est ajouté à ce stade.
 
 ---
 
@@ -170,3 +171,189 @@ Explicitement, cette phase se limite au modèle de données. Elle **ne** :
 - ne traite **aucune compatibilité** avec une application externe (ex. Hadelas).
 
 Les contrats V2 **coexistent** avec les structures V1 sans interférer avec elles.
+
+---
+
+## 10. Phase 2 — Pipeline sur participant unique
+
+La Phase 2 fait fonctionner le **pipeline cognitif V1 existant** pour un
+`Participant` unique de type `AGENT_AUTONOME`, sans changement de comportement.
+
+```text
+Pipeline V1 :
+  personnage + message + état
+        ↓ pipeline cognitif
+  réponse + nouvel état
+
+Pipeline V2 (Phase 2) :
+  participant autonome + événement + état d'interaction
+        ↓ adaptation du contexte (V2 → V1)
+  MÊME pipeline cognitif (executeTurn)
+        ↓ conversion (V1 → V2)
+  action attribuée au participant + nouvel état d'interaction
+```
+
+### 10.1 Nouveau point d'entrée public
+
+```js
+import { traiterInteraction } from './core/interaction/index.js'
+
+const resultat = await traiterInteraction(sollicitation, etatInteraction, {
+  providerConfig,          // obligatoire : transmis au pipeline V1
+  genererId,               // optionnel : générateur d'ids (défaut crypto.randomUUID)
+  date,                    // optionnel : date ISO des structures produites
+})
+// resultat : ResultatInteraction
+```
+
+`traiterInteraction` :
+
+1. valide la `Sollicitation` et l'`EtatInteraction` ;
+2. sélectionne l'**unique** participant autonome ciblé (règle stricte) ;
+3. vérifie son type, son statut et ses capacités indispensables ;
+4. extrait les fiches depuis son profil `PERSONNAGE` ;
+5. reconstruit les entrées V1 (`fiches`, `PlayerMessage`, `Etat`) ;
+6. exécute le pipeline V1 canonique **`executeTurn`** — jamais dupliqué ;
+7. convertit le `TurnResult` en `ResultatInteraction` (état immuable).
+
+### 10.2 Traitement d'exactement un agent autonome
+
+La sélection se fonde **uniquement** sur `sollicitation.participantIdsCibles`.
+Parmi les participants ciblés existants, il doit y avoir **exactement un**
+`AGENT_AUTONOME`. Aucune sélection « intelligente » n'est faite :
+
+- 0 cible → `CIBLES_ABSENTES` ;
+- une cible introuvable → `PARTICIPANT_INTROUVABLE` ;
+- 0 agent autonome ciblé → `AUCUN_AGENT_AUTONOME` ;
+- plusieurs agents autonomes ciblés → `PLUSIEURS_AGENTS_AUTONOMES`.
+
+Conditions pour traiter le participant retenu :
+
+```text
+participant.type === AGENT_AUTONOME
+ET participant.statut === ACTIF
+ET participant.capacites.peutAnalyser      === true
+ET participant.capacites.peutDecider       === true
+ET participant.capacites.peutProduireAction === true
+```
+
+`capacites` = possibilités structurelles ; `statut` = restriction contextuelle.
+Le statut ne peut jamais **accorder** une capacité absente ; il peut empêcher
+son usage (un statut non `ACTIF` fait échouer la sollicitation).
+
+Les capacités non indispensables sont traitées ainsi en Phase 2 :
+
+- `peutMemoriser` : si `false`, la mémoire du participant **n'est pas persistée**
+  (le pipeline la calcule mais le résultat conserve la mémoire précédente) ;
+- `peutPercevoir` / `peutRessentir` : intrinsèquement exercées par les étapes
+  Analyse et Ressenti du pipeline V1. En Phase 2, un `AGENT_AUTONOME` passant par
+  le pipeline cognitif est supposé les posséder (limitation, cf. §10.7).
+
+### 10.3 Forme minimale de `ProfilParticipant.donnees` (PERSONNAGE)
+
+Le personnage est fourni **via le profil**, jamais imposé sur `Participant` :
+
+```js
+{
+  type: TYPES_PROFIL_PARTICIPANT.PERSONNAGE,
+  donnees: {
+    fiches: {
+      personnage, // fiche personnage V1 (dont capaciteMemoire)
+      aventure,   // fiche aventure V1
+      univers,    // fiche univers V1
+      joueur,     // fiche joueur V1
+      memoire,    // fiche mémoire V1
+    },
+  },
+}
+```
+
+Les cinq fiches sont exactement celles attendues par le pipeline V1. Si l'une
+manque → `DONNEES_PROFIL_INCOMPLETES`. L'adaptateur ne modifie jamais les fiches.
+
+### 10.4 Adaptateur V2 → pipeline V1
+
+`core/interaction/adaptateur.js` regroupe des fonctions **pures** de conversion,
+sans aucune logique cognitive :
+
+- `extraireFiches` / `fichesCompletes` : extraction/validation de `profil.donnees.fiches` ;
+- `construireEtatV1(participantId, etatInteraction)` : reconstruit l'`Etat` V1
+  isolé du participant (voir §10.5) ;
+- `construirePlayerMessage(evenement, etatV1)` : `EvenementInteraction` → `PlayerMessage` ;
+- `determinerTypeAction` / `construireActionParticipant` : `ReponseIA` → `ActionParticipant` ;
+- `construireEvenementProduit`, `construireTraces`, `construireEtatPrive`.
+
+L'adaptateur ne recalcule aucune décision et ne reproduit aucun module métier :
+le pipeline cognitif reste la **source unique de vérité**.
+
+### 10.5 Isolation de l'état et de la mémoire par `participantId`
+
+L'`Etat` V1 du participant est reconstruit **uniquement** depuis ses données :
+
+```text
+Etat.memoireVecue ← etatInteraction.memoires[participantId]
+Etat.historique   ← etatInteraction.etatsPrives[participantId].historique
+Etat.tourCourant  ← etatInteraction.etatsPrives[participantId].tourCourant
+Etat.sessionId    ← etatInteraction.metadata.sessionId   (identité canonique)
+Etat.meta         ← etatInteraction.etatPartage.meta      (configuration canonique)
+```
+
+Le pipeline ne lit ni n'écrit jamais la mémoire d'un **autre** participant. Les
+mises à jour sont **immuables** (l'`EtatInteraction` reçu n'est jamais muté) :
+
+```js
+const nouvelEtat = {
+  ...etatInteraction,
+  etatsPrives: { ...etatInteraction.etatsPrives, [participantId]: nouvelEtatPrive },
+  memoires:    { ...etatInteraction.memoires,    [participantId]: nouvelleMemoire },
+  historique:  [...etatInteraction.historique, evenementEntree, ...evenementsProduits],
+}
+```
+
+**L'état canonique (`etatPartage`) n'est pas encore une perception individuelle.**
+La Phase 2 en transmet seulement `meta` (configuration de session) au pipeline.
+Ce n'est ni une perception complète, ni une connaissance partagée par tous les
+participants : cette adaptation est isolée pour être remplacée en Phase 3.
+
+### 10.6 Conversion de la sortie
+
+Le `TurnResult` V1 devient un `ResultatInteraction` :
+
+- **une** `ActionParticipant`, toujours dotée d'un `participantId` explicite.
+  Type dérivé sans réinterpréter la décision : `PAROLE` si un dialogue est
+  produit, sinon `ACTION` si une action l'est, sinon `SILENCE`. Le contenu
+  conserve les deux champs V1 (`{ action, dialogue }`) ;
+- `destinataireIds` dérive de `evenement.emetteurId` (aucune invention) ;
+- `visibilite` hérite de celle de l'événement déclencheur (défaut `PUBLIQUE`) ;
+- `evenementsProduits` : un `EvenementInteraction` de type `action_participant`
+  représentant l'action émise (pour enrichir l'historique) ;
+- `traces` : une `TraceInteraction` par étape cognitive (`analyse`, `influences`,
+  `ressenti`, `decision`, `reponse`, `memoire`), recopiant les sorties déjà
+  présentes dans le `TurnResult` (aucune logique de traçage ajoutée).
+
+### 10.7 API V1, interface canonique et limites
+
+- **L'API V1 (`executeTurn` / `runCycle`) reste disponible et inchangée.**
+- Stratégie retenue (la plus minimale garantissant une parité exacte) :
+  `executeTurn` demeure l'**entrée canonique du pipeline cognitif** ;
+  `traiterInteraction` est la **nouvelle interface publique orientée
+  participant**, posée par-dessus. Le pipeline n'est **pas dupliqué** : la V2
+  appelle littéralement la même fonction que la V1, ce qui garantit la parité.
+- Suppression future de la V1 : lorsque toutes les applications appelleront
+  `traiterInteraction`, `executeTurn` pourra devenir une fonction interne au
+  cœur, puis être retirée. Rien n'est supprimé durant cette phase.
+
+Le système d'erreurs existant est réutilisé : `ErreurInteraction` **étend**
+`ErreurValidation` (elle-même sous-classe d'`ErreurGabida`) et porte un `code`
+stable (`CODES_ERREUR_INTERACTION`). Les erreurs du pipeline V1
+(`ErreurValidation`, `ErreurPipeline`, `ErreurProvider`) sont propagées telles
+quelles.
+
+**Ce que la Phase 2 ne fait pas :** aucun orchestrateur multi-participants,
+aucune perception individuelle, aucune croyance divergente, aucun ordre de
+parole, aucune réaction en chaîne, aucun arbitrage de conflit, aucune boucle
+multi-tours, aucune parallélisation, aucune intégration Hadelas, aucune
+migration, aucune suppression de la V1. Elle prouve uniquement que **le pipeline
+cognitif actuel peut fonctionner avec un `Participant` autonome unique comme
+unité technique, sans changement de comportement** (démontré par le test de
+parité V1/V2).
