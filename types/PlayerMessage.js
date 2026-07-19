@@ -27,6 +27,10 @@
  *   Produit par l'application hôte. Format libre (ex. : UUID v4).
  *   Stable pendant toute la durée de la session.
  *
+ * @property {{id: string, type: string, cibleId?: string, contenu?: unknown}} [intentionMetier]
+ *   Contexte optionnel d'une intention metier explicite retenue par RFC-011.
+ *   Absent sur le chemin de compatibilite RFC-010.
+ *
  * @property {number} timestamp
  *   [obligatoire] Horodatage Unix en millisecondes au moment de l'envoi du message.
  *   Utilisé pour la traçabilité — non utilisé dans les calculs du cycle.

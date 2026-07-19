@@ -69,7 +69,7 @@ import {
   preparerTransmissionsInformation,
   validerEtatTransmissions,
 } from '../transmissions/index.js'
-import { preparerOrchestrationIntentions } from '../arbitrage/index.js'
+import { preparerPlanificationsExecution } from '../arbitrage/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -378,7 +378,7 @@ function evaluerPerceptions({
   genererIdVersionFait,
   genererIdRelation,
   genererIdTransmission,
-  producteurIntentions,
+  producteurIntentionsMetier,
 }) {
   const participantsSelectionnes = []
   const traces = []
@@ -483,15 +483,20 @@ function evaluerPerceptions({
     date,
   })
   traces.push(...resultatTransmissions.traces)
-  const resultatArbitrage = preparerOrchestrationIntentions({
+  const resultatPlanification = preparerPlanificationsExecution({
     participantsSelectionnes,
     evenement,
-    producteur: producteurIntentions,
+    producteurIntentionsMetier,
   })
   return {
-    participantsSelectionnes: resultatArbitrage.participantsArbitres,
-    intentionsRetenues: resultatArbitrage.intentionsRetenues,
-    intentionsEcartees: resultatArbitrage.intentionsEcartees,
+    participantsSelectionnes: resultatPlanification.executionsPlanifiees.map(
+      ({ cible, planification }) => ({ ...cible, planificationExecution: planification })
+    ),
+    ...(resultatPlanification.cheminCompatibiliteRfc010 ? {} : {
+      intentionsRetenues: resultatPlanification.intentionsRetenues,
+      intentionsEcartees: resultatPlanification.intentionsEcartees,
+      planificationsExecution: resultatPlanification.executionsPlanifiees.map(item => item.planification),
+    }),
     traces,
     etatInteractionMisAJour: { ...etatInteraction, etatsPrives: resultatTransmissions.etatsPrives },
   }
@@ -564,12 +569,13 @@ export async function traiterParticipantUnique({
   genererId,
   date,
   perception,
+  intentionMetier,
 }) {
   const participantId = participant.id
   const evenementEntree = sollicitation.evenement
 
   const etatV1        = construireEtatV1(participantId, etatInteraction)
-  const playerMessage = construirePlayerMessage(evenementEntree, etatV1)
+  const playerMessage = construirePlayerMessage(evenementEntree, etatV1, intentionMetier)
 
   let turnResult
   try {
@@ -578,7 +584,9 @@ export async function traiterParticipantUnique({
     throw new ErreurTraitementParticipant(participantId, cause)
   }
 
-  const destinataireIds = evenementEntree.emetteurId ? [evenementEntree.emetteurId] : []
+  const destinataireIds = intentionMetier?.cibleId
+    ? [intentionMetier.cibleId]
+    : evenementEntree.emetteurId ? [evenementEntree.emetteurId] : []
   const visibilite = evenementEntree.visibilite ?? VISIBILITES_EVENEMENT.PUBLIQUE
 
   const action = construireActionParticipant({
@@ -587,6 +595,7 @@ export async function traiterParticipantUnique({
     reponseIA: turnResult.reponseIA,
     destinataireIds,
     visibilite,
+    intentionMetier,
   })
 
   const evenementProduit = construireEvenementProduit({
@@ -620,6 +629,7 @@ export async function traiterParticipantUnique({
     traces,
     etatPrive,
     memoire: peutMemoriser ? turnResult.etatMisAJour.memoireVecue : undefined,
+    ...(intentionMetier === undefined ? {} : { intentionId: intentionMetier.id }),
   }
 }
 
@@ -665,10 +675,10 @@ export async function traiterParticipantUnique({
  *   Générateurs injectables des révisions et versions RFC-008.
  * @param {() => string} [dependances.genererIdTransmission]
  *   Generateur injectable des identifiants de transmission RFC-010.
- * @param {(entree: object) => import('../../types/Intention.js').Intention[]}
- *   [dependances.producteurIntentions]
- *   Producteur pur et deterministe injectable pour RFC-011. Par defaut, une
- *   intention d execution de priorite normale est produite par cible.
+ * @param {(entree: object) => import('../../types/IntentionMetier.js').IntentionMetier[]}
+ *   [dependances.producteurIntentionsMetier]
+ *   Producteur pur et deterministe injectable pour RFC-011. En son absence,
+ *   le chemin nomme de compatibilite RFC-010 ne cree aucune intention metier.
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
@@ -722,8 +732,8 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   const genererIdTransmission = typeof dependances.genererIdTransmission === 'function'
     ? dependances.genererIdTransmission
     : undefined
-  const producteurIntentions = typeof dependances.producteurIntentions === 'function'
-    ? dependances.producteurIntentions
+  const producteurIntentionsMetier = typeof dependances.producteurIntentionsMetier === 'function'
+    ? dependances.producteurIntentionsMetier
     : undefined
 
   if (optionsPropagation.active) {
@@ -745,7 +755,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererIdVersionFait,
           genererIdRelation,
           genererIdTransmission,
-          producteurIntentions,
+          producteurIntentionsMetier,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -757,6 +767,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererId,
           date,
           perception: sollicitationEtape.perception,
+          intentionMetier: sollicitationEtape.intentionMetier,
         }),
       genererId,
       date,
@@ -774,7 +785,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     genererIdVersionFait,
     genererIdRelation,
     genererIdTransmission,
-    producteurIntentions,
+    producteurIntentionsMetier,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -783,10 +794,12 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   return orchestrerTour({
     participantsSelectionnes: perceptionInitiale.participantsSelectionnes,
     intentionsRetenues: perceptionInitiale.intentionsRetenues,
+    intentionsEcartees: perceptionInitiale.intentionsEcartees,
+    planificationsExecution: perceptionInitiale.planificationsExecution,
     sollicitation,
     etatInitial: perceptionInitiale.etatInteractionMisAJour,
     tracesSupplementaires: perceptionInitiale.traces,
-    executerParticipant: ({ participant, fiches, perception, evenementPercu }, etatInitial) =>
+    executerParticipant: ({ participant, fiches, perception, evenementPercu, intentionMetier }, etatInitial) =>
       traiterParticipantUnique({
         participant,
         fiches,
@@ -796,6 +809,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
         genererId,
         date,
         perception,
+        intentionMetier,
       }),
   })
 }
@@ -854,18 +868,18 @@ export {
   validerEtatTransmissions,
 } from '../transmissions/index.js'
 export {
-  CODES_ERREUR_INTENTION,
-  ErreurIntention,
-  PRIORITES_INTENTION,
-  STATUTS_INTENTION,
-  TYPES_INTENTION,
-  produireIntentionsExecution,
-  validerIntentions,
+  CODES_ERREUR_INTENTION_METIER,
+  ErreurIntentionMetier,
+  PRIORITES_INTENTION_METIER,
+  STATUTS_INTENTION_METIER,
+  TYPES_INTENTION_METIER,
+  validerIntentionsMetier,
 } from '../intentions/index.js'
 export {
-  arbitrerIntentions,
-  comparerIntentions,
-  preparerOrchestrationIntentions,
+  arbitrerIntentionsMetier,
+  comparerIntentionsMetier,
+  planifierExecutionCompatibiliteRfc010,
+  preparerPlanificationsExecution,
 } from '../arbitrage/index.js'
 export {
   CODES_ERREUR_PROPAGATION,

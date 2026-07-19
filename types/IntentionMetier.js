@@ -1,5 +1,5 @@
 /**
- * @typedef {object} Intention
+ * @typedef {object} IntentionMetier
  * @property {string} id
  * @property {string} participantId
  * @property {string} type

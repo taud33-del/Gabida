@@ -17,8 +17,14 @@
  * @property {string} sollicitationId
  *   [obligatoire] Identifiant de la sollicitation à l'origine du résultat.
  *
- * @property {import('./Intention.js').Intention[]} intentionsRetenues
- *   [obligatoire] Intentions arbitrees avant l orchestration.
+ * @property {import('./IntentionMetier.js').IntentionMetier[]} [intentionsRetenues]
+ *   Intentions metier retenues lorsque le producteur explicite est utilise.
+ *
+ * @property {import('./IntentionMetier.js').IntentionMetier[]} [intentionsEcartees]
+ *   Intentions metier ecartees lorsque le producteur explicite est utilise.
+ *
+ * @property {import('./PlanificationExecutionParticipant.js').PlanificationExecutionParticipant[]} [planificationsExecution]
+ *   Autorisations d execution issues des intentions metier retenues.
  *
  * @property {import('./ActionParticipant.js').ActionParticipant[]} actions
  *   [obligatoire] Actions produites par les participants. Peut être vide.

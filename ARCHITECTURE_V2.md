@@ -1062,28 +1062,32 @@ Hadelas.
 
 # RFC-011 - Intentions, priorites et arbitrage deterministe
 
-RFC-011 introduit une couche structurelle entre la perception et les evolutions
-privees deja existantes, d'une part, et l'orchestrateur RFC-004, d'autre part.
-Un participant selectionne n'est plus transmis directement a l'orchestrateur :
-une intention d'execution est d'abord produite, puis la liste complete est
-arbitree. L'orchestrateur recoit uniquement les cibles associees aux intentions
-retenues et conserve strictement sa responsabilite, son atomicite et la regle
-« une execution par participant ».
+RFC-011 distingue deux objets qui ne sont jamais confondus.
 
-## Contrats et production
+- `PlanificationExecutionParticipant` autorise et ordonne l'appel unique au
+  pipeline d'un participant. Elle n'exprime aucune volonte metier.
+- `IntentionMetier` exprime une volonte structuree explicite : `parole`,
+  `action`, `interruption` ou `renoncement`. Elle porte sa priorite, son ordre
+  FIFO, sa cible, son contenu, son statut et ses metadata.
 
-`Intention` contient un identifiant stable, le participant, un type, une
-priorite numerique, un ordre de creation FIFO, une cible optionnelle, un contenu
-optionnel, un statut et des metadata. `ResultatArbitrage` separe les intentions
-retenues des intentions ecartees. Les types, priorites usuelles et statuts sont
-portes par `TYPES_INTENTION`, `PRIORITES_INTENTION` et `STATUTS_INTENTION`.
+Les contrats sont accompagnes de `TYPES_INTENTION_METIER`,
+`PRIORITES_INTENTION_METIER`, `STATUTS_INTENTION_METIER` et
+`MODES_PLANIFICATION_EXECUTION`. L'ancien type synthetique
+`execution_participant` n'existe plus et n'est pas une intention metier.
 
-Le producteur par defaut cree exactement une intention
-`execution_participant` par cible perceptible, dans l'ordre recu. Son id est
-derive de l'id de l'evenement, du participant et de l'ordre FIFO. Il ne consulte
-ni l'horloge systeme, ni une source aleatoire, ni un provider. Un producteur pur
-peut etre injecte pour fournir plusieurs intentions ou des priorites explicites,
-sans deplacer de logique cognitive dans l'arbitrage.
+## Production explicite et compatibilite RFC-010
+
+Une application ou un adaptateur deterministe peut injecter
+`producteurIntentionsMetier`. Le producteur recoit l'evenement et les cibles
+perceptibles, puis retourne les intentions explicites avant toute execution.
+Il n'appelle ni IA ni LLM et n'interprete aucun texte narratif.
+
+Lorsque ce producteur est absent, `planifierExecutionCompatibiliteRfc010()`
+cree uniquement une planification par participant, dans l'ordre historique de
+`participantIdsCibles`. Aucune `IntentionMetier` synthetique n'est creee et
+`ResultatInteraction` n'ajoute ni `intentionsRetenues` ni
+`intentionsEcartees`. Les actions, evenements, metadata et appels au pipeline
+restent ainsi strictement identiques a RFC-010.
 
 ## Arbitrage
 
@@ -1092,34 +1096,40 @@ croissant (FIFO), `participantId` croissant, puis `id` croissant. Les
 comparaisons textuelles sont ordinales et ne dependent pas de la locale. La
 fonction ne mute jamais la liste ni les intentions recues.
 
-Pour preserver RFC-004, une seule intention est retenue par participant. Dans
-l'ordre total, la premiere est marquee `retenue` et les suivantes sont marquees
-`ecartee`. L'ordre des participants transmis a l'orchestrateur est exactement
-l'ordre des intentions retenues. A priorite normale par defaut, cet ordre reste
-celui de `participantIdsCibles`.
+Pour preserver RFC-004, une seule intention metier est retenue par participant.
+La premiere dans l'ordre total est marquee `retenue` et les suivantes sont
+marquees `ecartee`. Une intention ecartee ne produit aucune planification,
+action, parole ou execution. Une intention `renoncement` retenue reste exposee
+dans le resultat d'arbitrage mais ne produit aucune planification ni appel au
+pipeline.
 
 ## Pipeline et compatibilite
 
 L'ordre pertinent devient : perception, evolutions epistemiques RFC-007/RFC-008,
-transmissions RFC-010 et relations RFC-009 deja preparees, production des
-intentions, arbitrage, puis orchestrateur RFC-004 et unique `executeTurn()` par
-participant retenu. Le chemin de propagation RFC-005 applique le meme arbitrage
-a chaque evenement depile et agrege les intentions retenues dans l'ordre FIFO.
+transmissions RFC-010 et relations RFC-009 deja preparees, production explicite
+des intentions metier, arbitrage, creation des planifications, orchestrateur
+RFC-004 et unique `executeTurn()` par planification.
 
-`ResultatInteraction.intentionsRetenues` expose la liste finale deja arbitree.
-Les actions, evenements, memoires, etats prives et traces restent produits et
-agreges par les modules existants. RFC-011 ne modifie aucune regle de
-perception, connaissance, croyance, relation, transmission ou propagation.
+Le pipeline V1 n'est pas modifie. La couche d'adaptation ajoute l'intention
+retenue au `PlayerMessage` comme contexte structurel. Son type fixe le type
+d'action attendu (`parole`/`interruption` ou `action`), sa cible fixe les
+destinataires, et son id est copie dans `ActionParticipant.metadata.intentionId`
+et `EvenementInteraction.metadata.intentionId`. Les listes
+`intentionsRetenues` et `intentionsEcartees` rendent l'arbitrage observable.
+
+Le chemin de propagation RFC-005 applique le meme mecanisme a chaque evenement
+depile. RFC-011 ne modifie aucune regle de perception, connaissance, croyance,
+relation, transmission ou propagation.
 
 ## Atomicite et limites volontaires
 
 Toutes les intentions sont validees et arbitrees avant le premier appel au
-pipeline d'un participant. Une `ErreurIntention`, sous-classe
+pipeline d'un participant. Une `ErreurIntentionMetier`, sous-classe
 d'`ErreurValidation`, rejette la liste entiere avant toute execution. Les ids
 d'intention dupliques, contrats invalides et participants introuvables sont
 refuses avec des codes stables.
 
-RFC-011 n'ajoute volontairement aucune intention narrative, planification,
-conflit semantique, cout, ressource, dependance entre intentions, hasard,
-probabilite, appel IA, appel LLM ou nouvelle propagation. Elle prepare seulement
-un point d'arbitrage deterministe pour les RFC futures.
+RFC-011 n'ajoute volontairement aucune extraction narrative, conflit semantique,
+cout, ressource, dependance entre intentions, hasard, probabilite, appel IA,
+appel LLM ou nouvelle propagation. Elle ne duplique pas `executeTurn()` et ne
+commence aucune responsabilite de RFC-012.
