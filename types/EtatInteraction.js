@@ -36,6 +36,8 @@
  *   prive optionnel des faits epistemiques de ce seul participant.
  *   Il peut enfin contenir `relations: { parParticipantId }`, etat relationnel
  *   directionnel prive de ce seul participant.
+ *   Il peut contenir `transmissions: { emises, recues }`, historique prive et
+ *   optionnel des transmissions RFC-010 de ce participant.
  *
  * @property {Object.<string, Object>} memoires
  *   [obligatoire] Mémoires indexées par participantId. Peut être un objet vide.

@@ -86,6 +86,9 @@ function validerEntree(entree) {
   if (entree.provenanceType !== undefined && !typesProvenance.has(entree.provenanceType)) {
     erreur(CODES_ERREUR_EPISTEMIQUE.TYPE_PROVENANCE_INVALIDE, 'type de provenance invalide.')
   }
+  if (entree.sourceId !== undefined && (typeof entree.sourceId !== 'string' || entree.sourceId === '')) {
+    erreur(CODES_ERREUR_EPISTEMIQUE.PROPOSITION_INVALIDE, 'sourceId de proposition invalide.')
+  }
   if (entree.confiance !== undefined) validerConfiance(entree.confiance)
   if (entree.participantsInformes !== undefined && (
     !Array.isArray(entree.participantsInformes) || entree.participantsInformes.some(id => typeof id !== 'string')
@@ -167,6 +170,7 @@ export function mettreAJourEtatEpistemique({
   genererIdEpistemique,
   genererIdRevision,
   genererIdVersionFait,
+  propositionsSupplementaires = [],
   date,
 }) {
   const participantId = participant?.id
@@ -181,6 +185,8 @@ export function mettreAJourEtatEpistemique({
   const structure = evenementCanonique?.metadata?.epistemique
 
   if (structure !== undefined) validerStructureEpistemique(structure)
+  if (!Array.isArray(propositionsSupplementaires)) erreur(CODES_ERREUR_EPISTEMIQUE.STRUCTURE_INVALIDE, 'propositions supplementaires invalides.')
+  propositionsSupplementaires.forEach(validerEntree)
   const expiration = appliquerExpirationsEpistemiques({
     participant, evenementCanonique, etatEpistemique: initial,
     genererId, genererIdRevision, genererIdVersionFait, date,
@@ -188,7 +194,7 @@ export function mettreAJourEtatEpistemique({
   traces.push(...expiration.traces)
   let etatCourant = expiration.etatEpistemique
 
-  if (structure === undefined) {
+  if (structure === undefined && propositionsSupplementaires.length === 0) {
     const change = expiration.revisionsAppliquees.length > 0
     return { etatEpistemique: change ? etatCourant : etatPrive.epistemique, faitsCrees, faitsMisAJour, revisionsAppliquees: expiration.revisionsAppliquees, traces }
   }
@@ -199,13 +205,13 @@ export function mettreAJourEtatEpistemique({
 
   const revision = appliquerRevisionsEpistemiques({
     participant, perception, evenementCanonique, etatEpistemique: etatCourant,
-    revisions: structure.revisions ?? [], genererId, genererIdRevision,
+    revisions: structure?.revisions ?? [], genererId, genererIdRevision,
     genererIdVersionFait, date,
   })
   etatCourant = revision.etatEpistemique
   traces.push(...revision.traces)
   const revisionsAppliquees = [...expiration.revisionsAppliquees, ...revision.revisionsAppliquees]
-  const propositions = structure.propositions ?? []
+  const propositions = [...(structure?.propositions ?? []), ...propositionsSupplementaires]
   if (propositions.length === 0) {
     traces.push(creerTrace({ etape: ETAPES_TRACE_EPISTEMIQUE.AUCUNE_PROPOSITION, participantId, evenementId: evenementCanonique.id, genererId, date }))
     const change = revisionsAppliquees.length > 0
@@ -236,7 +242,7 @@ export function mettreAJourEtatEpistemique({
     const perceptionSourceId = `${evenementCanonique.id}:${participantId}`
     const provenance = {
       type: provenanceType,
-      sourceId: entree.participantSourceId ?? evenementCanonique.id,
+      sourceId: entree.sourceId ?? entree.participantSourceId ?? evenementCanonique.id,
       evenementId: evenementCanonique.id,
       participantSourceId: entree.participantSourceId ?? null,
       precisionPerception: perception.precision,
