@@ -554,3 +554,94 @@ narrative. Il ne modifie pas le pipeline cognitif et n'ajoute ni réaction en
 chaîne, ni propagation d'événements, ni perception avancée, ni croyances, ni
 second passage cognitif. Ces sujets restent hors périmètre et sont réservés aux
 RFC-005, RFC-006 et RFC-007.
+
+---
+
+## 13. RFC-005 — Propagation déterministe des événements
+
+RFC-005 ajoute, derrière l'option explicite `dependances.propagation.active`,
+une file d'événements FIFO dans `core/interaction/propagation.js`. L'API publique
+reste `traiterInteraction(sollicitation, etatInteraction, dependances)` et
+`executeTurn()` demeure l'unique pipeline cognitif. Sans configuration de
+propagation, ou avec `active: false`, le chemin RFC-004 est utilisé sans aucune
+modification de son résultat.
+
+### File FIFO et ordre déterministe
+
+La file commence avec l'événement initial à la profondeur `0`. Chaque événement
+est dépilé dans l'ordre FIFO, puis les participants qui le perçoivent sont
+traités dans l'ordre exact de `sollicitation.participantIdsCibles`. Les événements
+observables qu'ils produisent sont ajoutés à la fin de la file dans ce même
+ordre. Il n'existe ni hasard, ni priorité narrative, ni parallélisation.
+
+```text
+file = [{ evenementInitial, profondeur: 0 }]
+tant que file non vide :
+  depiler le premier evenement
+  selectionner les cibles qui le percoivent, sauf son emetteur
+  orchestrerTour(...)
+  agreger l'etape
+  enfiler les evenements observables a profondeur + 1
+```
+
+Le périmètre reste strictement limité aux cibles initiales. La perception est la
+règle minimale existante (`peutPercevoirEvenement`) ; aucune cible extérieure
+n'est ajoutée et l'émetteur ne réagit pas immédiatement à sa propre action.
+
+### Isolation dans une étape et évolution entre étapes
+
+Pour un même événement, `orchestrerTour()` transmet exactement le même état de
+départ à tous les participants sélectionnés. Ils ne voient donc pas les réponses
+des autres participants de cette étape. Une fois l'étape entièrement réussie,
+son état agrégé devient l'état initial de l'événement FIFO suivant. La chaîne
+évolue entre les événements sans casser l'isolation cognitive interne à un tour.
+
+L'historique global est construit séparément des historiques intermédiaires de
+RFC-004 : historique précédent, événement initial, puis événements produits dans
+leur ordre réel. Chaque identifiant d'événement n'y apparaît qu'une fois.
+
+### Événements propagables et dédoublonnage
+
+`estEvenementPropagable(action, evenement)` est une fonction pure. Elle accepte
+uniquement les actions externes observables :
+
+- `TYPES_ACTION_PARTICIPANT.PAROLE` ;
+- `TYPES_ACTION_PARTICIPANT.ACTION`.
+
+Les silences et réactions internes ne sont pas propagés. L'association utilise
+strictement le même index dans `actions` et `evenementsProduits`, sans analyse
+LLM. Un ensemble local `evenementIdsTraites` empêche tout traitement répété : un
+doublon est ignoré et tracé sans lancer de pipeline. Un événement sans identifiant
+ou une association action/événement incohérente produit une
+`ErreurPropagation`, sous-classe d'`ErreurValidation`, avec un code stable.
+
+### Limites de sécurité et atomicité
+
+Les valeurs par défaut sont :
+
+```js
+propagation: {
+  active: false,
+  nombreMaximumEvenements: 20,
+  profondeurMaximum: 5,
+}
+```
+
+Atteindre la profondeur maximale empêche seulement d'enfiler les descendants
+suivants. Atteindre le nombre maximal arrête la boucle avant de dépiler un
+événement supplémentaire. Ces deux limites sont des fins normales : elles
+conservent les résultats déjà validés et ajoutent respectivement les traces
+`propagation_profondeur_maximale` et `propagation_nombre_maximal`.
+
+À l'inverse, une erreur de pipeline, de participant, d'événement ou de cohérence
+d'état invalide atomiquement toute l'interaction. Aucun `ResultatInteraction`
+partiel n'est retourné, la cause reste préservée par la hiérarchie existante et
+l'état fourni en entrée n'est jamais muté.
+
+### Ce que RFC-005 ne fait volontairement pas
+
+RFC-005 n'ajoute aucune perception avancée, croyance divergente, priorité de
+parole, interruption, résolution de conflit, sélection narrative intelligente,
+extension autonome du périmètre, narrateur ou intégration Hadelas. Ces capacités,
+notamment la perception enrichie, restent réservées à RFC-006 et aux RFC
+ultérieures.
