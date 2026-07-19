@@ -183,10 +183,10 @@ describe('traiterInteraction — immutabilité et historique (multi)', () => {
       fabriqueEtatInteractionMulti(),
       dependances()
     )
-    // 6 étapes par participant.
-    expect(resultat.traces).toHaveLength(12)
-    expect(resultat.traces.filter(t => t.participantId === PARTICIPANT_ID)).toHaveLength(6)
-    expect(resultat.traces.filter(t => t.participantId === PARTICIPANT_ID_B)).toHaveLength(6)
+    // 3 etapes perceptives puis 6 etapes cognitives par participant.
+    expect(resultat.traces).toHaveLength(18)
+    expect(resultat.traces.filter(t => t.participantId === PARTICIPANT_ID)).toHaveLength(9)
+    expect(resultat.traces.filter(t => t.participantId === PARTICIPANT_ID_B)).toHaveLength(9)
   })
 })
 
@@ -224,7 +224,7 @@ describe('traiterInteraction — perception minimale', () => {
     expect(resultat.etat.etatsPrives[PARTICIPANT_ID_B].tourCourant).toBe(7)
   })
 
-  test('événement non perceptible par aucune cible : erreur documentée', async () => {
+  test('événement non perceptible par aucune cible : resultat vide sans erreur', async () => {
     const evenement = fabriqueEvenement({
       visibilite: VISIBILITES_EVENEMENT.PRIVEE,
       destinataireIds: ['quelqu-un-d-autre'],
@@ -233,13 +233,10 @@ describe('traiterInteraction — perception minimale', () => {
       evenement,
       participantIdsCibles: [PARTICIPANT_ID, PARTICIPANT_ID_B],
     })
-    expect.assertions(2)
-    try {
-      await traiterInteraction(sollicitation, fabriqueEtatInteractionMulti(), dependances())
-    } catch (e) {
-      expect(e).toBeInstanceOf(ErreurInteraction)
-      expect(e.code).toBe(CODES_ERREUR_INTERACTION.EVENEMENT_NON_PERCEPTIBLE)
-    }
+    const resultat = await traiterInteraction(sollicitation, fabriqueEtatInteractionMulti(), dependances())
+    expect(resultat.actions).toEqual([])
+    expect(resultat.evenementsProduits).toEqual([])
+    expect(resultat.etat.historique).toEqual([evenement])
   })
 })
 

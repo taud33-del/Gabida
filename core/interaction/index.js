@@ -44,12 +44,17 @@ import {
 } from './adaptateur.js'
 import {
   orchestrerTour,
-  selectionnerParticipants,
 } from './orchestrateur.js'
 import {
   normaliserOptionsPropagation,
   propagerInteraction,
 } from './propagation.js'
+import {
+  calculerPerception,
+  construireEntreePerception,
+  construireEvenementPercu,
+  construireTracesPerception,
+} from '../perception/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -317,12 +322,84 @@ export function resoudreCiblesAutonomes(sollicitation, etatInteraction) {
   })
 }
 
+/** Resolution structurelle avant perception, sans exiger une aptitude cognitive. */
+function resoudreCiblesPourPerception(sollicitation, etatInteraction) {
+  const cibles = sollicitation.participantIdsCibles
+  if (cibles.length === 0) {
+    throw new ErreurInteraction(
+      CODES_ERREUR_INTERACTION.CIBLES_ABSENTES,
+      'traiterInteraction : aucun participant cible dans la sollicitation.'
+    )
+  }
+  const vus = new Set()
+  return cibles.map(id => {
+    if (vus.has(id)) {
+      throw new ErreurInteraction(
+        CODES_ERREUR_INTERACTION.CIBLES_DUPLIQUEES,
+        `traiterInteraction : identifiant cible duplique ("${id}").`
+      )
+    }
+    vus.add(id)
+    const participant = etatInteraction.participants[id]
+    if (!participant) {
+      throw new ErreurInteraction(
+        CODES_ERREUR_INTERACTION.PARTICIPANT_INTROUVABLE,
+        `traiterInteraction : participant cible introuvable ("${id}").`
+      )
+    }
+    return { participant }
+  })
+}
+
+function evaluerPerceptions({
+  cibles,
+  evenement,
+  etatInteraction,
+  genererId,
+  date,
+  participantIdsSansValidation = [],
+}) {
+  const participantsSelectionnes = []
+  const traces = []
+
+  // Toutes les perceptions sont calculees avant la premiere execution : une
+  // erreur structurelle conserve ainsi l'atomicite totale de l'interaction.
+  const evaluations = cibles.map(({ participant }) => ({
+    participant,
+    perception: calculerPerception({
+      participant,
+      evenement,
+      etatInteraction,
+      contexte: evenement.metadata?.perception,
+    }),
+  }))
+
+  for (const evaluation of evaluations) {
+    traces.push(...construireTracesPerception(evaluation.perception, genererId, date))
+    if (!evaluation.perception.perceptible) continue
+    const sansValidation = participantIdsSansValidation.includes(evaluation.participant.id)
+    const fiches = sansValidation
+      ? undefined
+      : validerParticipant(evaluation.participant, etatInteraction)
+    participantsSelectionnes.push({
+      participant: evaluation.participant,
+      fiches,
+      perception: evaluation.perception,
+      evenementPercu: construireEvenementPercu(evenement, evaluation.perception),
+    })
+  }
+  return { participantsSelectionnes, traces }
+}
+
 // ─── Perception minimale ─────────────────────────────────────────────────────
 
 /**
  * peutPercevoirEvenement(participant, evenement)
  *
- * Règle de perception minimale et déterministe (aucun moteur de perception) :
+ * Ancienne regle minimale conservee comme export de compatibilite. Le chemin
+ * public de traiterInteraction utilise calculerPerception (RFC-006).
+ *
+ * Regle minimale et deterministe :
  *   - PUBLIQUE   : perceptible par tout participant ciblé ;
  *   - PRIVEE     : perceptible uniquement par les participants de destinataireIds ;
  *   - RESTREINTE : règle minimale — identique à PRIVEE (limitée à destinataireIds)
@@ -380,6 +457,7 @@ export async function traiterParticipantUnique({
   providerConfig,
   genererId,
   date,
+  perception,
 }) {
   const participantId = participant.id
   const evenementEntree = sollicitation.evenement
@@ -416,7 +494,16 @@ export async function traiterParticipantUnique({
   const traces = construireTraces({ participantId, genererId, date, turnResult })
 
   const etatPrivePrecedent = etatInteraction.etatsPrives[participantId] ?? {}
-  const etatPrive = construireEtatPrive(etatPrivePrecedent, turnResult.etatMisAJour)
+  let etatPrive = construireEtatPrive(etatPrivePrecedent, turnResult.etatMisAJour)
+  if (perception) {
+    etatPrive = {
+      ...etatPrive,
+      perceptions: [
+        ...(Array.isArray(etatPrivePrecedent.perceptions) ? etatPrivePrecedent.perceptions : []),
+        construireEntreePerception(perception, date),
+      ],
+    }
+  }
 
   const peutMemoriser = participant.capacites.peutMemoriser === true
 
@@ -491,25 +578,12 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   validerSollicitation(sollicitation)
   validerEtatInteraction(etatInteraction)
 
-  const ciblesResolues = resoudreCiblesAutonomes(sollicitation, etatInteraction)
-
-  const percevants = selectionnerParticipants(
-    ciblesResolues,
-    sollicitation.evenement,
-    peutPercevoirEvenement
-  )
-  if (percevants.length === 0) {
-    throw new ErreurInteraction(
-      CODES_ERREUR_INTERACTION.EVENEMENT_NON_PERCEPTIBLE,
-      'traiterInteraction : evenement non perceptible par aucun participant cible.'
-    )
-  }
-
   const date = typeof dependances.date === 'string'
     ? dependances.date
     : sollicitation.evenement.date
 
   const optionsPropagation = normaliserOptionsPropagation(dependances.propagation)
+  const ciblesResolues = resoudreCiblesPourPerception(sollicitation, etatInteraction)
 
   if (optionsPropagation.active) {
     return propagerInteraction({
@@ -517,7 +591,15 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
       etatInitial: etatInteraction,
       ciblesResolues,
       options: optionsPropagation,
-      peutPercevoir: peutPercevoirEvenement,
+      evaluerPerceptions: ({ evenement, etatInteraction: etatEtape }) =>
+        evaluerPerceptions({
+          cibles: ciblesResolues,
+          evenement,
+          etatInteraction: etatEtape,
+          genererId,
+          date,
+          participantIdsSansValidation: evenement.emetteurId ? [evenement.emetteurId] : [],
+        }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
           participant,
@@ -527,33 +609,55 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           providerConfig: dependances.providerConfig,
           genererId,
           date,
+          perception: sollicitationEtape.perception,
         }),
       genererId,
       date,
     })
   }
 
+  const perceptionInitiale = evaluerPerceptions({
+    cibles: ciblesResolues,
+    evenement: sollicitation.evenement,
+    etatInteraction,
+    genererId,
+    date,
+  })
+
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
   // Les résultats sont d'abord tous collectés : l'état agrégé n'est construit
   // qu'après réussite de tous les traitements (atomicité, pas de résultat partiel).
   return orchestrerTour({
-    participantsSelectionnes: percevants,
+    participantsSelectionnes: perceptionInitiale.participantsSelectionnes,
     sollicitation,
     etatInitial: etatInteraction,
-    executerParticipant: ({ participant, fiches }, etatInitial) =>
+    tracesSupplementaires: perceptionInitiale.traces,
+    executerParticipant: ({ participant, fiches, perception, evenementPercu }, etatInitial) =>
       traiterParticipantUnique({
         participant,
         fiches,
-        sollicitation,
+        sollicitation: { ...sollicitation, evenement: evenementPercu },
         etatInteraction: etatInitial,
         providerConfig: dependances.providerConfig,
         genererId,
         date,
+        perception,
       }),
   })
 }
 
 export { ErreurGabida, ErreurValidation }
+export {
+  CANAUX_PERCEPTION,
+  CODES_ERREUR_PERCEPTION,
+  ErreurPerception,
+  ETAPES_TRACE_PERCEPTION,
+  PRECISIONS_PERCEPTION,
+  calculerPerception,
+  construireEntreePerception,
+  construireEvenementPercu,
+  construireTracesPerception,
+} from '../perception/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
   ErreurPropagation,

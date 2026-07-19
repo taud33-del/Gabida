@@ -8,7 +8,7 @@
 
 import { TYPES_ACTION_PARTICIPANT } from '../../constants/TypesActionParticipant.js'
 import { ErreurValidation } from '../index.js'
-import { orchestrerTour, selectionnerParticipants } from './orchestrateur.js'
+import { orchestrerTour } from './orchestrateur.js'
 
 export const OPTIONS_PROPAGATION_PAR_DEFAUT = Object.freeze({
   active: false,
@@ -134,6 +134,7 @@ export async function propagerInteraction({
   etatInitial,
   ciblesResolues,
   options,
+  evaluerPerceptions,
   peutPercevoir,
   executerParticipant,
   genererId,
@@ -198,21 +199,27 @@ export async function propagerInteraction({
     ))
 
     const sollicitationEtape = { ...sollicitation, evenement }
-    const participantsSelectionnes = selectionnerParticipants(
-      ciblesResolues,
-      evenement,
-      peutPercevoir
-    ).filter(({ participant }) => participant.id !== evenement.emetteurId)
+    const perceptionEtape = typeof evaluerPerceptions === 'function'
+      ? evaluerPerceptions({ evenement, etatInteraction: etatCourant })
+      : {
+          participantsSelectionnes: ciblesResolues.filter(
+            ({ participant }) => peutPercevoir(participant, evenement)
+          ),
+          traces: [],
+        }
+    const participantsSelectionnes = perceptionEtape.participantsSelectionnes
+      .filter(({ participant }) => participant.id !== evenement.emetteurId)
 
     const resultatEtape = await orchestrerTour({
       participantsSelectionnes,
       sollicitation: sollicitationEtape,
       etatInitial: etatCourant,
-      executerParticipant: (cible, etatEtape) => executerParticipant(
-        cible,
-        etatEtape,
-        sollicitationEtape
-      ),
+      tracesSupplementaires: perceptionEtape.traces,
+      executerParticipant: (cible, etatEtape) => executerParticipant(cible, etatEtape, {
+        ...sollicitationEtape,
+        evenement: cible.evenementPercu ?? evenement,
+        perception: cible.perception,
+      }),
     })
 
     actions.push(...resultatEtape.actions)

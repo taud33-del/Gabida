@@ -584,9 +584,10 @@ tant que file non vide :
   enfiler les evenements observables a profondeur + 1
 ```
 
-Le périmètre reste strictement limité aux cibles initiales. La perception est la
-règle minimale existante (`peutPercevoirEvenement`) ; aucune cible extérieure
-n'est ajoutée et l'émetteur ne réagit pas immédiatement à sa propre action.
+Le perimetre reste strictement limite aux cibles initiales. Depuis RFC-006, la
+selection reutilise `calculerPerception` pour chaque evenement canonique ;
+aucune cible exterieure n'est ajoutee et l'emetteur ne reagit pas immediatement
+a sa propre action.
 
 ### Isolation dans une étape et évolution entre étapes
 
@@ -645,3 +646,81 @@ parole, interruption, résolution de conflit, sélection narrative intelligente,
 extension autonome du périmètre, narrateur ou intégration Hadelas. Ces capacités,
 notamment la perception enrichie, restent réservées à RFC-006 et aux RFC
 ultérieures.
+# RFC-006 — Perception individuelle deterministe
+
+## Role et separation canonique
+
+RFC-006 ajoute une etape pure entre l'evenement canonique et le pipeline
+cognitif individuel. L'etat partage reste la verite objective de l'interaction,
+l'evenement canonique reste le fait historique unique, et une
+`PerceptionParticipant` est seulement la representation partielle accessible a
+un participant. Le moteur ne mute jamais l'evenement canonique et ne cree pas
+un nouvel evenement historique pour chaque perception.
+
+Le contrat `PerceptionParticipant` contient `participantId`, `evenementId`,
+`perceptible`, `contenuPercu`, `canaux`, `precision`, `raisons` et `metadata`.
+Les canaux officiels sont `VISUEL`, `AUDITIF`, `DIRECT` et `SYSTEME`. Les
+precisions sont `COMPLETE`, `PARTIELLE` et `AUCUNE`.
+
+## Ordre deterministe des regles
+
+`calculerPerception()` applique toujours les regles dans cet ordre :
+
+1. la capacite explicite `peutPercevoir === true` est requise ;
+2. un participant `INACTIF` ne percoit rien ;
+3. un evenement `SYSTEME` exige une autorisation nominative ;
+4. une exclusion explicite refuse la perception ;
+5. une liste d'autorisation non vide limite la perception a ses membres ;
+6. un evenement `PUBLIQUE` est perceptible sans autre restriction ;
+7. un evenement `PRIVEE` est reserve a ses destinataires, sauf autorisation
+   explicite plus precise ;
+8. un evenement `RESTREINTE` utilise la liste d'autorisation et, en son
+   absence, conserve la regle RFC-005 fondee sur `destinataireIds` ;
+9. la perception de l'emetteur reste possible, tandis que RFC-005 l'exclut
+   separement des reactions immediates.
+
+Une absence normale de perception produit `perceptible: false` et
+`precision: AUCUNE` ; ce n'est pas une exception. Une structure invalide leve
+`ErreurPerception`, sous-classe d'`ErreurValidation`, avant toute execution.
+
+## Contenu individuel et integration
+
+Le contenu suit la priorite `contenuParParticipant[participantId]`, puis
+`contenuParDefaut`, puis `evenement.contenu`. Une adaptation explicite est
+`PARTIELLE` par defaut ; le contenu canonique intact est `COMPLETE`.
+`construireEvenementPercu()` copie l'evenement pour le pipeline et inscrit dans
+ses metadonnees le participant, l'identifiant canonique, la precision et les
+canaux. `executeTurn()` reste unique et inchange.
+
+`traiterInteraction()` evalue toutes les perceptions avant la premiere
+execution, selectionne les seules perceptions acceptees, puis remet a chaque
+participant sa propre copie percue. La propagation RFC-005 repete exactement
+ce calcul pour chaque evenement canonique depile. La file FIFO et l'historique
+global ne contiennent que les evenements canoniques ; les copies percues n'y
+entrent jamais. L'exclusion de l'emetteur intervient apres la perception.
+
+## Etat prive, traces et compatibilite
+
+Chaque participant effectivement traite recoit dans son propre etat prive une
+entree immutable sous le tableau optionnel `perceptions`. Elle contient
+`evenementId`, `perceptible`, `contenuPercu`, `canaux`, `precision` et `date`.
+Elle n'est ni un souvenir, ni une connaissance, ni une croyance, et n'est
+jamais copiee dans l'etat prive d'un autre participant.
+
+Les traces stables sont `perception_evaluee`, `perception_acceptee`,
+`perception_refusee`, `perception_partielle` et `perception_complete`. Elles
+identifient le participant et l'evenement ainsi que la decision, la precision,
+les raisons et les canaux, sans recopier le contenu sensible complet.
+
+Sans `metadata.perception`, les regles de visibilite PUBLIQUE, PRIVEE,
+RESTREINTE et SYSTEME reproduisent RFC-005 et les sorties narratives restent
+identiques. Le champ prive `perceptions` demeure optionnel pour les anciens
+etats. Une erreur structurelle pendant l'evaluation annule toute l'interaction :
+aucun pipeline, resultat partiel ou etat partiellement mis a jour n'est produit.
+
+## Limites volontaires
+
+RFC-006 n'ajoute ni espace, distance, ligne de vue, acoustique, probabilite,
+hallucination, interpretation subjective, mensonge, connaissance durable,
+croyance, contradiction, oubli, priorite narrative ou integration Hadelas.
+Ces responsabilites appartiennent aux RFC ulterieures.

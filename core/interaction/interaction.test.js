@@ -103,7 +103,10 @@ describe('traiterInteraction — succès (participant autonome unique)', () => {
   test('produit des traces pour les étapes cognitives', async () => {
     const resultat = await traiterInteraction(fabriqueSollicitation(), fabriqueEtatInteraction(), dependances())
     const etapes = resultat.traces.map(t => t.etape)
-    expect(etapes).toEqual(['analyse', 'influences', 'ressenti', 'decision', 'reponse', 'memoire'])
+    expect(etapes).toEqual([
+      'perception_evaluee', 'perception_acceptee', 'perception_complete',
+      'analyse', 'influences', 'ressenti', 'decision', 'reponse', 'memoire',
+    ])
     expect(resultat.traces.every(t => t.participantId === PARTICIPANT_ID)).toBe(true)
   })
 })
@@ -237,10 +240,14 @@ describe('traiterInteraction — validations et erreurs', () => {
     )
   })
 
-  test('participant inactif', () => {
+  test('participant inactif ne lance aucun pipeline', async () => {
     const participant = fabriqueParticipant({ statut: STATUTS_PARTICIPANT.INACTIF })
     const etatInteraction = fabriqueEtatInteraction({ participants: { [PARTICIPANT_ID]: participant } })
-    return attendreCode(fabriqueSollicitation(), etatInteraction, CODES_ERREUR_INTERACTION.STATUT_INVALIDE)
+    const resultat = await traiterInteraction(fabriqueSollicitation(), etatInteraction, dependances())
+    expect(resultat.actions).toEqual([])
+    expect(resultat.traces.map(trace => trace.etape)).toEqual([
+      'perception_evaluee', 'perception_refusee',
+    ])
   })
 
   test('capacité indispensable absente', () => {
