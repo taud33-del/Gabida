@@ -157,7 +157,13 @@ export async function propagerInteraction({
   const intentionsRetenues = []
   const intentionsEcartees = []
   const planificationsExecution = []
+  const intentionsExecutables = []
+  const intentionsEcarteesParConflit = []
+  const conflitsDetectes = []
+  const planificationsFinales = []
+  const ordreExecutionFinal = []
   let intentionsMetierObservees = false
+  let resolutionConflitsObservee = false
   let etatCourant = etatInitial
   let nombreEvenementsTraites = 0
 
@@ -216,6 +222,7 @@ export async function propagerInteraction({
     const intentionsEtape = perceptionEtape.intentionsRetenues
     const intentionsEcarteesEtape = perceptionEtape.intentionsEcartees
     const planificationsEtape = perceptionEtape.planificationsExecution
+    const resolutionConflitsEtape = perceptionEtape.resultatResolutionConflits
     const etatEtapeEpistemique = perceptionEtape.etatInteractionMisAJour ?? etatCourant
 
     const resultatEtape = await orchestrerTour({
@@ -223,6 +230,7 @@ export async function propagerInteraction({
       intentionsRetenues: intentionsEtape,
       intentionsEcartees: intentionsEcarteesEtape,
       planificationsExecution: planificationsEtape,
+      resultatResolutionConflits: resolutionConflitsEtape,
       sollicitation: sollicitationEtape,
       etatInitial: etatEtapeEpistemique,
       tracesSupplementaires: perceptionEtape.traces,
@@ -240,6 +248,14 @@ export async function propagerInteraction({
       intentionsRetenues.push(...resultatEtape.intentionsRetenues)
       intentionsEcartees.push(...resultatEtape.intentionsEcartees)
       planificationsExecution.push(...resultatEtape.planificationsExecution)
+    }
+    if (resultatEtape.intentionsExecutables !== undefined) {
+      resolutionConflitsObservee = true
+      intentionsExecutables.push(...resultatEtape.intentionsExecutables)
+      intentionsEcarteesParConflit.push(...resultatEtape.intentionsEcarteesParConflit)
+      conflitsDetectes.push(...resultatEtape.conflitsDetectes)
+      planificationsFinales.push(...resultatEtape.planificationsFinales)
+      ordreExecutionFinal.push(...resultatEtape.ordreExecutionFinal)
     }
     evenementsProduits.push(...resultatEtape.evenementsProduits)
     traces.push(...resultatEtape.traces)
@@ -284,6 +300,13 @@ export async function propagerInteraction({
       intentionsRetenues,
       intentionsEcartees,
       planificationsExecution,
+    } : {}),
+    ...(resolutionConflitsObservee ? {
+      intentionsExecutables,
+      intentionsEcarteesParConflit,
+      conflitsDetectes,
+      planificationsFinales,
+      ordreExecutionFinal,
     } : {}),
     actions,
     evenementsProduits,

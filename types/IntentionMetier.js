@@ -8,5 +8,5 @@
  * @property {string|null} cibleId
  * @property {unknown} contenu
  * @property {string} statut
- * @property {Object} metadata
+ * @property {{conflit?: import('./RegleResolutionConflit.js').RegleResolutionConflit, [cle:string]:unknown}} metadata
  */

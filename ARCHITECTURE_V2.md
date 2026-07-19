@@ -1131,5 +1131,96 @@ refuses avec des codes stables.
 
 RFC-011 n'ajoute volontairement aucune extraction narrative, conflit semantique,
 cout, ressource, dependance entre intentions, hasard, probabilite, appel IA,
-appel LLM ou nouvelle propagation. Elle ne duplique pas `executeTurn()` et ne
-commence aucune responsabilite de RFC-012.
+appel LLM ou nouvelle propagation. Elle ne duplique pas `executeTurn()`.
+Aucune partie de RFC-012 n'interprete le contenu textuel d'une intention.
+
+---
+
+## RFC-012 — Resolution deterministe des conflits d'actions
+
+### Role et position dans le pipeline
+
+RFC-011 arbitre les volontes d'un meme participant et produit au maximum une
+planification par participant. RFC-012 intervient ensuite, uniquement lorsqu'elle
+est activee explicitement par `resolutionConflits.active=true`. Elle compare les
+intentions metier retenues de participants differents et remet a l'orchestrateur
+RFC-004 uniquement les planifications finales executables.
+
+Le pipeline est donc : perception, evolutions epistemiques, production et
+arbitrage RFC-011, resolution RFC-012, orchestrateur, puis `executeTurn()`.
+RFC-012 ne reimplemente ni l'arbitrage, ni l'orchestrateur, ni le pipeline V1.
+
+### Contrats structures
+
+Les contraintes sont exclusivement declarees dans `IntentionMetier.metadata.conflit` :
+
+- `cleExclusivite` : cle non vide partagee par des usages exclusifs ;
+- `idsIntentionsIncompatibles` : incompatibilites explicites ;
+- `idsIntentionsRequises` : dependances d'execution ;
+- `ressourcesConsommees` : couples `ressourceId` / quantite entiere positive ;
+- `ordreApres` et `ordreAvant` : contraintes d'ordre explicites.
+
+Les capacites sont fournies par `resolutionConflits.ressourcesDisponibles`. Une
+capacite est un entier positif ou nul. Aucune consommation n'est implicite et
+aucune contrainte n'est deduite de `contenu`, d'un dialogue ou d'une cible.
+
+Les contrats publics sont `ConflitAction`, `RegleResolutionConflit` et
+`ResultatResolutionConflits`. Les erreurs utilisent `ErreurResolutionConflit`,
+sous-classe d'`ErreurValidation`, avec des codes stables.
+
+### Types de conflits
+
+- `CIBLE_EXCLUSIVE` : une cle d'exclusivite est deja allouee ;
+- `MUTUELLEMENT_EXCLUSIVES` : une incompatibilite d'identifiants est declaree ;
+- `DEPENDANCE_NON_SATISFAITE` : une intention requise n'est plus executable ;
+- `RESSOURCE_INSUFFISANTE` : l'allocation complete ne peut pas etre satisfaite ;
+- `AUCUN_CONFLIT` : constante contractuelle representant la coexistence, sans
+  creation artificielle d'un objet conflit.
+
+`PAROLE`, `ACTION` et `INTERRUPTION` coexistent par defaut. `RENONCEMENT` reste
+observable dans RFC-011 mais n'entre jamais dans la resolution et ne cree aucune
+planification ou faux conflit.
+
+### Ordre, ressources et dependances
+
+L'ordre total reutilise exactement RFC-011 : priorite decroissante, ordre de
+creation croissant, `participantId`, puis `id`, avec comparaison ordinale. Dans
+un conflit, la premiere intention gagne. Les allocations de ressources suivent
+ce meme ordre et sont atomiques : une demande est entierement allouee ou rejetee,
+sans consommation partielle.
+
+Les dependances satisfaites et `ordreAvant` / `ordreApres` alimentent un tri
+topologique deterministe. Les choix disponibles sont departages par l'ordre total
+RFC-011. Une reference inconnue, un cycle de dependances ou un cycle d'ordre est
+rejete avant toute execution avec un code stable.
+
+Les identifiants de conflit sont reproductibles, par exemple
+`conflit:cible_exclusive:intention-a:intention-b`, avec identifiants tries. La
+resolution n'utilise ni horloge, ni UUID aleatoire, ni `Math.random()`.
+
+### Resultat, atomicite et propagation
+
+Lorsque RFC-012 est active, le resultat expose : `intentionsExecutables`,
+`intentionsEcarteesParConflit`, `conflitsDetectes`, `planificationsFinales` et
+`ordreExecutionFinal`. Une intention ecartee porte le conflit, son type, la
+gagnante eventuelle et un code de raison. Elle n'atteint jamais l'orchestrateur,
+ne lance jamais `executeTurn()` et ne produit ni action, ni dialogue, ni evenement.
+
+Toutes les intentions, contraintes, references, planifications et ressources
+sont validees avant le premier appel au pipeline. La propagation RFC-005 applique
+la resolution independamment a chaque evenement depile et agrege les resultats
+dans son ordre FIFO, sans creer de propagation supplementaire.
+
+### Compatibilite
+
+Sans activation explicite, aucune fonction RFC-012 n'est appelee, toutes les
+planifications RFC-011 restent executables dans le meme ordre et aucun champ
+RFC-012 n'est ajoute au resultat. Le chemin RFC-010 sans intentions metier reste
+donc structurellement identique. `executeTurn()` n'est ni modifie ni duplique.
+
+### Limites volontaires
+
+RFC-012 ne comprend volontairement aucune simulation physique, aucun deplacement
+spatial, aucune chronologie narrative avancee, aucune negociation, revision des
+intentions, cout emotionnel, strategie, consensus, groupe ou scene RFC-013,
+integration Hadelas, IA ou LLM.

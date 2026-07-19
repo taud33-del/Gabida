@@ -70,6 +70,12 @@ import {
   validerEtatTransmissions,
 } from '../transmissions/index.js'
 import { preparerPlanificationsExecution } from '../arbitrage/index.js'
+import {
+  CODES_ERREUR_RESOLUTION_CONFLIT,
+  ErreurResolutionConflit,
+  normaliserConfigurationResolutionConflits,
+  resoudreConflitsActions,
+} from '../resolution-conflits/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -379,6 +385,7 @@ function evaluerPerceptions({
   genererIdRelation,
   genererIdTransmission,
   producteurIntentionsMetier,
+  configurationResolutionConflits = { active: false },
 }) {
   const participantsSelectionnes = []
   const traces = []
@@ -488,8 +495,30 @@ function evaluerPerceptions({
     evenement,
     producteurIntentionsMetier,
   })
+  let executionsFinales = resultatPlanification.executionsPlanifiees
+  let resultatResolutionConflits
+  if (configurationResolutionConflits.active) {
+    if (resultatPlanification.cheminCompatibiliteRfc010) {
+      throw new ErreurResolutionConflit(
+        CODES_ERREUR_RESOLUTION_CONFLIT.CONFIGURATION_INVALIDE,
+        'resolution conflits : un producteur d intentions metier est requis.'
+      )
+    }
+    resultatResolutionConflits = resoudreConflitsActions({
+      intentionsRetenues: resultatPlanification.intentionsRetenues,
+      planificationsExecution: resultatPlanification.executionsPlanifiees.map(item => item.planification),
+      ressourcesDisponibles: configurationResolutionConflits.ressourcesDisponibles,
+    })
+    const executionsParIntention = new Map(resultatPlanification.executionsPlanifiees.map(
+      item => [item.planification.intentionId, item]
+    ))
+    executionsFinales = resultatResolutionConflits.planificationsFinales.map(planification => ({
+      ...executionsParIntention.get(planification.intentionId),
+      planification,
+    }))
+  }
   return {
-    participantsSelectionnes: resultatPlanification.executionsPlanifiees.map(
+    participantsSelectionnes: executionsFinales.map(
       ({ cible, planification }) => ({ ...cible, planificationExecution: planification })
     ),
     ...(resultatPlanification.cheminCompatibiliteRfc010 ? {} : {
@@ -497,6 +526,7 @@ function evaluerPerceptions({
       intentionsEcartees: resultatPlanification.intentionsEcartees,
       planificationsExecution: resultatPlanification.executionsPlanifiees.map(item => item.planification),
     }),
+    ...(resultatResolutionConflits === undefined ? {} : { resultatResolutionConflits }),
     traces,
     etatInteractionMisAJour: { ...etatInteraction, etatsPrives: resultatTransmissions.etatsPrives },
   }
@@ -679,6 +709,8 @@ export async function traiterParticipantUnique({
  *   [dependances.producteurIntentionsMetier]
  *   Producteur pur et deterministe injectable pour RFC-011. En son absence,
  *   le chemin nomme de compatibilite RFC-010 ne cree aucune intention metier.
+ * @param {{active:true, ressourcesDisponibles?:Object}} [dependances.resolutionConflits]
+ *   Active explicitement RFC-012. Sans cette option, le resultat RFC-011 reste inchange.
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
@@ -716,6 +748,9 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     : sollicitation.evenement.date
 
   const optionsPropagation = normaliserOptionsPropagation(dependances.propagation)
+  const configurationResolutionConflits = normaliserConfigurationResolutionConflits(
+    dependances.resolutionConflits
+  )
   const ciblesResolues = resoudreCiblesPourPerception(sollicitation, etatInteraction)
   const genererIdEpistemique = typeof dependances.genererIdEpistemique === 'function'
     ? dependances.genererIdEpistemique
@@ -756,6 +791,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererIdRelation,
           genererIdTransmission,
           producteurIntentionsMetier,
+          configurationResolutionConflits,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -786,6 +822,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     genererIdRelation,
     genererIdTransmission,
     producteurIntentionsMetier,
+    configurationResolutionConflits,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -796,6 +833,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     intentionsRetenues: perceptionInitiale.intentionsRetenues,
     intentionsEcartees: perceptionInitiale.intentionsEcartees,
     planificationsExecution: perceptionInitiale.planificationsExecution,
+    resultatResolutionConflits: perceptionInitiale.resultatResolutionConflits,
     sollicitation,
     etatInitial: perceptionInitiale.etatInteractionMisAJour,
     tracesSupplementaires: perceptionInitiale.traces,
@@ -881,6 +919,15 @@ export {
   planifierExecutionCompatibiliteRfc010,
   preparerPlanificationsExecution,
 } from '../arbitrage/index.js'
+export {
+  CODES_ERREUR_RESOLUTION_CONFLIT,
+  ErreurResolutionConflit,
+  STATUTS_RESOLUTION_ACTION,
+  TYPES_CONFLIT_ACTION,
+  normaliserConfigurationResolutionConflits,
+  resoudreConflitsActions,
+  validerEntreesResolution,
+} from '../resolution-conflits/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
   ErreurPropagation,

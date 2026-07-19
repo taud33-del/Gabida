@@ -56,6 +56,7 @@ export function agregerResultats({
   intentionsRetenues,
   intentionsEcartees,
   planificationsExecution,
+  resultatResolutionConflits,
 }) {
   const actions            = resultatsParticipants.map(resultat => resultat.action)
   const evenementsProduits = resultatsParticipants.map(resultat => resultat.evenementProduit)
@@ -87,6 +88,7 @@ export function agregerResultats({
       intentionsEcartees,
       planificationsExecution,
     }),
+    ...(resultatResolutionConflits === undefined ? {} : resultatResolutionConflits),
     actions,
     evenementsProduits,
     etat: {
@@ -108,6 +110,7 @@ export async function orchestrerTour({
   intentionsRetenues,
   intentionsEcartees,
   planificationsExecution,
+  resultatResolutionConflits,
   sollicitation,
   etatInitial,
   executerParticipant,
@@ -129,5 +132,6 @@ export async function orchestrerTour({
     intentionsRetenues,
     intentionsEcartees,
     planificationsExecution,
+    resultatResolutionConflits,
   })
 }
