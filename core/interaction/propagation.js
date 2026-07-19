@@ -154,6 +154,10 @@ export async function propagerInteraction({
   const actions = []
   const evenementsProduits = []
   const traces = []
+  const intentionsRetenues = []
+  const intentionsEcartees = []
+  const planificationsExecution = []
+  let intentionsMetierObservees = false
   let etatCourant = etatInitial
   let nombreEvenementsTraites = 0
 
@@ -209,10 +213,16 @@ export async function propagerInteraction({
         }
     const participantsSelectionnes = perceptionEtape.participantsSelectionnes
       .filter(({ participant }) => participant.id !== evenement.emetteurId)
+    const intentionsEtape = perceptionEtape.intentionsRetenues
+    const intentionsEcarteesEtape = perceptionEtape.intentionsEcartees
+    const planificationsEtape = perceptionEtape.planificationsExecution
     const etatEtapeEpistemique = perceptionEtape.etatInteractionMisAJour ?? etatCourant
 
     const resultatEtape = await orchestrerTour({
       participantsSelectionnes,
+      intentionsRetenues: intentionsEtape,
+      intentionsEcartees: intentionsEcarteesEtape,
+      planificationsExecution: planificationsEtape,
       sollicitation: sollicitationEtape,
       etatInitial: etatEtapeEpistemique,
       tracesSupplementaires: perceptionEtape.traces,
@@ -220,10 +230,17 @@ export async function propagerInteraction({
         ...sollicitationEtape,
         evenement: cible.evenementPercu ?? evenement,
         perception: cible.perception,
+        intentionMetier: cible.intentionMetier,
       }),
     })
 
     actions.push(...resultatEtape.actions)
+    if (resultatEtape.intentionsRetenues !== undefined) {
+      intentionsMetierObservees = true
+      intentionsRetenues.push(...resultatEtape.intentionsRetenues)
+      intentionsEcartees.push(...resultatEtape.intentionsEcartees)
+      planificationsExecution.push(...resultatEtape.planificationsExecution)
+    }
     evenementsProduits.push(...resultatEtape.evenementsProduits)
     traces.push(...resultatEtape.traces)
 
@@ -263,6 +280,11 @@ export async function propagerInteraction({
 
   return {
     sollicitationId: sollicitation.id,
+    ...(intentionsMetierObservees ? {
+      intentionsRetenues,
+      intentionsEcartees,
+      planificationsExecution,
+    } : {}),
     actions,
     evenementsProduits,
     etat: { ...etatCourant, historique: [...historique] },

@@ -1059,3 +1059,77 @@ automatique, persuasion, reputation, confiance envers les sources, calcul
 relationnel, rumeur, propagation virale, contradiction semantique, theorie de
 l'esprit, priorite de parole, resolution de conflit, appel LLM ou integration
 Hadelas.
+
+# RFC-011 - Intentions, priorites et arbitrage deterministe
+
+RFC-011 distingue deux objets qui ne sont jamais confondus.
+
+- `PlanificationExecutionParticipant` autorise et ordonne l'appel unique au
+  pipeline d'un participant. Elle n'exprime aucune volonte metier.
+- `IntentionMetier` exprime une volonte structuree explicite : `parole`,
+  `action`, `interruption` ou `renoncement`. Elle porte sa priorite, son ordre
+  FIFO, sa cible, son contenu, son statut et ses metadata.
+
+Les contrats sont accompagnes de `TYPES_INTENTION_METIER`,
+`PRIORITES_INTENTION_METIER`, `STATUTS_INTENTION_METIER` et
+`MODES_PLANIFICATION_EXECUTION`. L'ancien type synthetique
+`execution_participant` n'existe plus et n'est pas une intention metier.
+
+## Production explicite et compatibilite RFC-010
+
+Une application ou un adaptateur deterministe peut injecter
+`producteurIntentionsMetier`. Le producteur recoit l'evenement et les cibles
+perceptibles, puis retourne les intentions explicites avant toute execution.
+Il n'appelle ni IA ni LLM et n'interprete aucun texte narratif.
+
+Lorsque ce producteur est absent, `planifierExecutionCompatibiliteRfc010()`
+cree uniquement une planification par participant, dans l'ordre historique de
+`participantIdsCibles`. Aucune `IntentionMetier` synthetique n'est creee et
+`ResultatInteraction` n'ajoute ni `intentionsRetenues` ni
+`intentionsEcartees`. Les actions, evenements, metadata et appels au pipeline
+restent ainsi strictement identiques a RFC-010.
+
+## Arbitrage
+
+L'ordre total est, sans exception : priorite decroissante, ordre de creation
+croissant (FIFO), `participantId` croissant, puis `id` croissant. Les
+comparaisons textuelles sont ordinales et ne dependent pas de la locale. La
+fonction ne mute jamais la liste ni les intentions recues.
+
+Pour preserver RFC-004, une seule intention metier est retenue par participant.
+La premiere dans l'ordre total est marquee `retenue` et les suivantes sont
+marquees `ecartee`. Une intention ecartee ne produit aucune planification,
+action, parole ou execution. Une intention `renoncement` retenue reste exposee
+dans le resultat d'arbitrage mais ne produit aucune planification ni appel au
+pipeline.
+
+## Pipeline et compatibilite
+
+L'ordre pertinent devient : perception, evolutions epistemiques RFC-007/RFC-008,
+transmissions RFC-010 et relations RFC-009 deja preparees, production explicite
+des intentions metier, arbitrage, creation des planifications, orchestrateur
+RFC-004 et unique `executeTurn()` par planification.
+
+Le pipeline V1 n'est pas modifie. La couche d'adaptation ajoute l'intention
+retenue au `PlayerMessage` comme contexte structurel. Son type fixe le type
+d'action attendu (`parole`/`interruption` ou `action`), sa cible fixe les
+destinataires, et son id est copie dans `ActionParticipant.metadata.intentionId`
+et `EvenementInteraction.metadata.intentionId`. Les listes
+`intentionsRetenues` et `intentionsEcartees` rendent l'arbitrage observable.
+
+Le chemin de propagation RFC-005 applique le meme mecanisme a chaque evenement
+depile. RFC-011 ne modifie aucune regle de perception, connaissance, croyance,
+relation, transmission ou propagation.
+
+## Atomicite et limites volontaires
+
+Toutes les intentions sont validees et arbitrees avant le premier appel au
+pipeline d'un participant. Une `ErreurIntentionMetier`, sous-classe
+d'`ErreurValidation`, rejette la liste entiere avant toute execution. Les ids
+d'intention dupliques, contrats invalides et participants introuvables sont
+refuses avec des codes stables.
+
+RFC-011 n'ajoute volontairement aucune extraction narrative, conflit semantique,
+cout, ressource, dependance entre intentions, hasard, probabilite, appel IA,
+appel LLM ou nouvelle propagation. Elle ne duplique pas `executeTurn()` et ne
+commence aucune responsabilite de RFC-012.

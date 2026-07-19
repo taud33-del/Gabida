@@ -69,6 +69,7 @@ import {
   preparerTransmissionsInformation,
   validerEtatTransmissions,
 } from '../transmissions/index.js'
+import { preparerPlanificationsExecution } from '../arbitrage/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -377,6 +378,7 @@ function evaluerPerceptions({
   genererIdVersionFait,
   genererIdRelation,
   genererIdTransmission,
+  producteurIntentionsMetier,
 }) {
   const participantsSelectionnes = []
   const traces = []
@@ -481,8 +483,20 @@ function evaluerPerceptions({
     date,
   })
   traces.push(...resultatTransmissions.traces)
-  return {
+  const resultatPlanification = preparerPlanificationsExecution({
     participantsSelectionnes,
+    evenement,
+    producteurIntentionsMetier,
+  })
+  return {
+    participantsSelectionnes: resultatPlanification.executionsPlanifiees.map(
+      ({ cible, planification }) => ({ ...cible, planificationExecution: planification })
+    ),
+    ...(resultatPlanification.cheminCompatibiliteRfc010 ? {} : {
+      intentionsRetenues: resultatPlanification.intentionsRetenues,
+      intentionsEcartees: resultatPlanification.intentionsEcartees,
+      planificationsExecution: resultatPlanification.executionsPlanifiees.map(item => item.planification),
+    }),
     traces,
     etatInteractionMisAJour: { ...etatInteraction, etatsPrives: resultatTransmissions.etatsPrives },
   }
@@ -555,12 +569,13 @@ export async function traiterParticipantUnique({
   genererId,
   date,
   perception,
+  intentionMetier,
 }) {
   const participantId = participant.id
   const evenementEntree = sollicitation.evenement
 
   const etatV1        = construireEtatV1(participantId, etatInteraction)
-  const playerMessage = construirePlayerMessage(evenementEntree, etatV1)
+  const playerMessage = construirePlayerMessage(evenementEntree, etatV1, intentionMetier)
 
   let turnResult
   try {
@@ -569,7 +584,9 @@ export async function traiterParticipantUnique({
     throw new ErreurTraitementParticipant(participantId, cause)
   }
 
-  const destinataireIds = evenementEntree.emetteurId ? [evenementEntree.emetteurId] : []
+  const destinataireIds = intentionMetier?.cibleId
+    ? [intentionMetier.cibleId]
+    : evenementEntree.emetteurId ? [evenementEntree.emetteurId] : []
   const visibilite = evenementEntree.visibilite ?? VISIBILITES_EVENEMENT.PUBLIQUE
 
   const action = construireActionParticipant({
@@ -578,6 +595,7 @@ export async function traiterParticipantUnique({
     reponseIA: turnResult.reponseIA,
     destinataireIds,
     visibilite,
+    intentionMetier,
   })
 
   const evenementProduit = construireEvenementProduit({
@@ -611,6 +629,7 @@ export async function traiterParticipantUnique({
     traces,
     etatPrive,
     memoire: peutMemoriser ? turnResult.etatMisAJour.memoireVecue : undefined,
+    ...(intentionMetier === undefined ? {} : { intentionId: intentionMetier.id }),
   }
 }
 
@@ -656,6 +675,10 @@ export async function traiterParticipantUnique({
  *   Générateurs injectables des révisions et versions RFC-008.
  * @param {() => string} [dependances.genererIdTransmission]
  *   Generateur injectable des identifiants de transmission RFC-010.
+ * @param {(entree: object) => import('../../types/IntentionMetier.js').IntentionMetier[]}
+ *   [dependances.producteurIntentionsMetier]
+ *   Producteur pur et deterministe injectable pour RFC-011. En son absence,
+ *   le chemin nomme de compatibilite RFC-010 ne cree aucune intention metier.
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
@@ -709,6 +732,9 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   const genererIdTransmission = typeof dependances.genererIdTransmission === 'function'
     ? dependances.genererIdTransmission
     : undefined
+  const producteurIntentionsMetier = typeof dependances.producteurIntentionsMetier === 'function'
+    ? dependances.producteurIntentionsMetier
+    : undefined
 
   if (optionsPropagation.active) {
     return propagerInteraction({
@@ -729,6 +755,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererIdVersionFait,
           genererIdRelation,
           genererIdTransmission,
+          producteurIntentionsMetier,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -740,6 +767,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererId,
           date,
           perception: sollicitationEtape.perception,
+          intentionMetier: sollicitationEtape.intentionMetier,
         }),
       genererId,
       date,
@@ -757,6 +785,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     genererIdVersionFait,
     genererIdRelation,
     genererIdTransmission,
+    producteurIntentionsMetier,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -764,10 +793,13 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   // qu'après réussite de tous les traitements (atomicité, pas de résultat partiel).
   return orchestrerTour({
     participantsSelectionnes: perceptionInitiale.participantsSelectionnes,
+    intentionsRetenues: perceptionInitiale.intentionsRetenues,
+    intentionsEcartees: perceptionInitiale.intentionsEcartees,
+    planificationsExecution: perceptionInitiale.planificationsExecution,
     sollicitation,
     etatInitial: perceptionInitiale.etatInteractionMisAJour,
     tracesSupplementaires: perceptionInitiale.traces,
-    executerParticipant: ({ participant, fiches, perception, evenementPercu }, etatInitial) =>
+    executerParticipant: ({ participant, fiches, perception, evenementPercu, intentionMetier }, etatInitial) =>
       traiterParticipantUnique({
         participant,
         fiches,
@@ -777,6 +809,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
         genererId,
         date,
         perception,
+        intentionMetier,
       }),
   })
 }
@@ -834,6 +867,20 @@ export {
   preparerTransmissionsInformation,
   validerEtatTransmissions,
 } from '../transmissions/index.js'
+export {
+  CODES_ERREUR_INTENTION_METIER,
+  ErreurIntentionMetier,
+  PRIORITES_INTENTION_METIER,
+  STATUTS_INTENTION_METIER,
+  TYPES_INTENTION_METIER,
+  validerIntentionsMetier,
+} from '../intentions/index.js'
+export {
+  arbitrerIntentionsMetier,
+  comparerIntentionsMetier,
+  planifierExecutionCompatibiliteRfc010,
+  preparerPlanificationsExecution,
+} from '../arbitrage/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
   ErreurPropagation,

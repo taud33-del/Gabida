@@ -138,9 +138,10 @@ export function construireEtatV1(participantId, etatInteraction) {
  *
  * @param {import('../../types/EvenementInteraction.js').EvenementInteraction} evenement
  * @param {import('../../types/Etat.js').Etat} etatV1
+ * @param {import('../../types/IntentionMetier.js').IntentionMetier} [intentionMetier]
  * @returns {import('../../types/PlayerMessage.js').PlayerMessage}
  */
-export function construirePlayerMessage(evenement, etatV1) {
+export function construirePlayerMessage(evenement, etatV1, intentionMetier) {
   const contenu = evenement?.contenu
   const texte = contenu && typeof contenu === 'object'
     ? contenu.texte
@@ -152,6 +153,14 @@ export function construirePlayerMessage(evenement, etatV1) {
     tour      : etatV1.tourCourant,
     sessionId : etatV1.sessionId,
     timestamp,
+    ...(intentionMetier === undefined ? {} : {
+      intentionMetier: {
+        id: intentionMetier.id,
+        type: intentionMetier.type,
+        cibleId: intentionMetier.cibleId,
+        contenu: intentionMetier.contenu,
+      },
+    }),
   }
 }
 
@@ -189,17 +198,24 @@ export function determinerTypeAction(reponseIA) {
  * @param {import('../../types/ReponseIA.js').ReponseIA} params.reponseIA
  * @param {string[]} params.destinataireIds
  * @param {string} params.visibilite
+ * @param {import('../../types/IntentionMetier.js').IntentionMetier} [params.intentionMetier]
  * @returns {import('../../types/ActionParticipant.js').ActionParticipant}
  */
-export function construireActionParticipant({ id, participantId, reponseIA, destinataireIds, visibilite }) {
+export function construireActionParticipant({ id, participantId, reponseIA, destinataireIds, visibilite, intentionMetier }) {
+  const typeIntention = intentionMetier?.type
+  const type = typeIntention === 'parole' || typeIntention === 'interruption'
+    ? TYPES_ACTION_PARTICIPANT.PAROLE
+    : typeIntention === 'action'
+      ? TYPES_ACTION_PARTICIPANT.ACTION
+      : determinerTypeAction(reponseIA)
   return {
     id,
     participantId,
-    type    : determinerTypeAction(reponseIA),
+    type,
     contenu : { action: reponseIA.action, dialogue: reponseIA.dialogue },
     destinataireIds,
     visibilite,
-    metadata: {},
+    metadata: intentionMetier === undefined ? {} : { intentionId: intentionMetier.id },
   }
 }
 
@@ -226,7 +242,7 @@ export function construireEvenementProduit({ id, type, emetteurId, action, date 
     contenu        : action.contenu,
     visibilite     : action.visibilite,
     date,
-    metadata       : {},
+    metadata       : { ...action.metadata },
   }
 }
 
