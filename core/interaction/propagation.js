@@ -209,11 +209,12 @@ export async function propagerInteraction({
         }
     const participantsSelectionnes = perceptionEtape.participantsSelectionnes
       .filter(({ participant }) => participant.id !== evenement.emetteurId)
+    const etatEtapeEpistemique = perceptionEtape.etatInteractionMisAJour ?? etatCourant
 
     const resultatEtape = await orchestrerTour({
       participantsSelectionnes,
       sollicitation: sollicitationEtape,
-      etatInitial: etatCourant,
+      etatInitial: etatEtapeEpistemique,
       tracesSupplementaires: perceptionEtape.traces,
       executerParticipant: (cible, etatEtape) => executerParticipant(cible, etatEtape, {
         ...sollicitationEtape,
