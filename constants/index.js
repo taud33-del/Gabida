@@ -27,3 +27,10 @@ export * from './ImportancesMemoire.js'
 export * from './Providers.js'
 export * from './RolesMessageInterne.js'
 export * from './RuntimeStates.js'
+
+// ─── Gabida V2 — modèle multi-participants (Phase 1 : constantes uniquement) ───
+export * from './TypesParticipant.js'
+export * from './StatutsParticipant.js'
+export * from './TypesProfilParticipant.js'
+export * from './VisibilitesEvenement.js'
+export * from './TypesActionParticipant.js'

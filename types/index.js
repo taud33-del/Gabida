@@ -24,3 +24,15 @@ export * from './Prompt.js'
 export * from './ReponseIA.js'
 export * from './Etat.js'
 export * from './Sauvegarde.js'
+
+// ─── Gabida V2 — modèle multi-participants (Phase 1 : contrats de données) ─────
+// Contrats JSDoc uniquement (aucun export runtime). Ils coexistent avec les
+// types V1 ci-dessus sans les modifier ni les remplacer.
+export * from './Participant.js'
+export * from './EvenementInteraction.js'
+export * from './Sollicitation.js'
+export * from './RelationParticipant.js'
+export * from './ActionParticipant.js'
+export * from './TraceInteraction.js'
+export * from './EtatInteraction.js'
+export * from './ResultatInteraction.js'
