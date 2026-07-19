@@ -4,37 +4,14 @@ import { PRECISIONS_PERCEPTION } from '../../constants/PrecisionsPerception.js'
 import { TYPES_FAIT_EPISTEMIQUE } from '../../constants/TypesFaitEpistemique.js'
 import { STATUTS_FAIT_EPISTEMIQUE } from '../../constants/StatutsFaitEpistemique.js'
 import { TYPES_PROVENANCE_EPISTEMIQUE } from '../../constants/TypesProvenanceEpistemique.js'
-import { ErreurValidation } from '../index.js'
-
-export const CODES_ERREUR_EPISTEMIQUE = Object.freeze({
-  STRUCTURE_INVALIDE: 'structure_epistemique_invalide',
-  PROPOSITION_INVALIDE: 'proposition_epistemique_invalide',
-  TYPE_FAIT_INVALIDE: 'type_fait_epistemique_invalide',
-  STATUT_FAIT_INVALIDE: 'statut_fait_epistemique_invalide',
-  TYPE_PROVENANCE_INVALIDE: 'type_provenance_epistemique_invalide',
-  CONFIANCE_INVALIDE: 'confiance_epistemique_invalide',
-  FAIT_CONTREDIT_INTROUVABLE: 'fait_contredit_introuvable',
-  FAIT_REMPLACE_INTROUVABLE: 'fait_remplace_introuvable',
-  GENERATEUR_ID_ABSENT: 'generateur_id_epistemique_absent',
-})
-
-export const ETAPES_TRACE_EPISTEMIQUE = Object.freeze({
-  PROPOSITION_IGNOREE: 'epistemique_proposition_ignoree',
-  FAIT_CREE: 'epistemique_fait_cree',
-  FAIT_MIS_A_JOUR: 'epistemique_fait_mis_a_jour',
-  FAIT_CONTREDIT: 'epistemique_fait_contredit',
-  FAIT_REMPLACE: 'epistemique_fait_remplace',
-  AUCUNE_PERCEPTION: 'epistemique_aucune_perception',
-  AUCUNE_PROPOSITION: 'epistemique_aucune_proposition',
-})
-
-export class ErreurEpistemique extends ErreurValidation {
-  constructor(code, message) {
-    super(message)
-    this.name = 'ErreurEpistemique'
-    this.code = code
-  }
-}
+import { OPERATIONS_REVISION_EPISTEMIQUE } from '../../constants/OperationsRevisionEpistemique.js'
+import { CODES_ERREUR_EPISTEMIQUE, ErreurEpistemique, ETAPES_TRACE_EPISTEMIQUE } from './erreurs.js'
+import {
+  appliquerExpirationsEpistemiques,
+  appliquerRevisionsEpistemiques,
+  selectionnerFaitsEpistemiquesActifs,
+  validerRevisionsEpistemiques,
+} from './revision.js'
 
 const typesFait = new Set(Object.values(TYPES_FAIT_EPISTEMIQUE))
 const statutsFait = new Set(Object.values(STATUTS_FAIT_EPISTEMIQUE))
@@ -73,6 +50,21 @@ function validerFait(fait, participantId) {
     erreur(CODES_ERREUR_EPISTEMIQUE.STRUCTURE_INVALIDE, 'collections du fait invalides.')
   }
   fait.provenance.forEach(validerProvenance)
+  if (fait.version !== undefined && (!Number.isInteger(fait.version) || fait.version < 1)) {
+    erreur(CODES_ERREUR_EPISTEMIQUE.VERSION_INVALIDE, 'version de fait invalide.')
+  }
+  if (fait.faitPrecedentId !== undefined && fait.faitPrecedentId !== null && typeof fait.faitPrecedentId !== 'string') {
+    erreur(CODES_ERREUR_EPISTEMIQUE.VERSION_INVALIDE, 'faitPrecedentId invalide.')
+  }
+  if (fait.racineFaitId !== undefined && (typeof fait.racineFaitId !== 'string' || fait.racineFaitId === '')) {
+    erreur(CODES_ERREUR_EPISTEMIQUE.VERSION_INVALIDE, 'racineFaitId invalide.')
+  }
+  if (fait.dateExpiration !== undefined && fait.dateExpiration !== null && (
+    typeof fait.dateExpiration !== 'string' || !Number.isFinite(Date.parse(fait.dateExpiration))
+  )) erreur(CODES_ERREUR_EPISTEMIQUE.DATE_EXPIRATION_INVALIDE, 'dateExpiration du fait invalide.')
+  if (fait.revisionIds !== undefined && (!Array.isArray(fait.revisionIds) || fait.revisionIds.some(id => typeof id !== 'string'))) {
+    erreur(CODES_ERREUR_EPISTEMIQUE.VERSION_INVALIDE, 'revisionIds invalide.')
+  }
 }
 
 export function validerEtatEpistemique(etatEpistemique, participantId) {
@@ -104,10 +96,11 @@ function validerEntree(entree) {
 }
 
 export function validerStructureEpistemique(structure) {
-  if (!estObjet(structure) || !Array.isArray(structure.propositions)) {
-    erreur(CODES_ERREUR_EPISTEMIQUE.STRUCTURE_INVALIDE, 'metadata.epistemique.propositions doit etre un tableau.')
+  if (!estObjet(structure) || (structure.propositions !== undefined && !Array.isArray(structure.propositions))) {
+    erreur(CODES_ERREUR_EPISTEMIQUE.STRUCTURE_INVALIDE, 'metadata.epistemique invalide.')
   }
-  structure.propositions.forEach(validerEntree)
+  ;(structure.propositions ?? []).forEach(validerEntree)
+  if (structure.revisions !== undefined) validerRevisionsEpistemiques(structure.revisions)
   return structure
 }
 
@@ -155,7 +148,7 @@ function remplacerStatut(tableaux, faitId, statut, codeIntrouvable) {
   const resultat = {}
   for (const [cle, faits] of Object.entries(tableaux)) {
     resultat[cle] = faits.map(fait => {
-      if (fait.id !== faitId || fait.statut !== STATUTS_FAIT_EPISTEMIQUE.ACTIF) return fait
+      if ((fait.id !== faitId && fait.racineFaitId !== faitId) || fait.statut !== STATUTS_FAIT_EPISTEMIQUE.ACTIF) return fait
       trouve = true
       return { ...fait, statut }
     })
@@ -172,6 +165,8 @@ export function mettreAJourEtatEpistemique({
   etatPrive = {},
   genererId,
   genererIdEpistemique,
+  genererIdRevision,
+  genererIdVersionFait,
   date,
 }) {
   const participantId = participant?.id
@@ -180,29 +175,50 @@ export function mettreAJourEtatEpistemique({
   }
   validerEtatEpistemique(etatPrive.epistemique, participantId)
   const initial = etatPrive.epistemique ?? { connaissances: [], croyances: [] }
-  let tableaux = {
-    connaissances: [...initial.connaissances],
-    croyances: [...initial.croyances],
-  }
   const faitsCrees = []
   const faitsMisAJour = []
   const traces = []
   const structure = evenementCanonique?.metadata?.epistemique
 
+  if (structure !== undefined) validerStructureEpistemique(structure)
+  const expiration = appliquerExpirationsEpistemiques({
+    participant, evenementCanonique, etatEpistemique: initial,
+    genererId, genererIdRevision, genererIdVersionFait, date,
+  })
+  traces.push(...expiration.traces)
+  let etatCourant = expiration.etatEpistemique
+
   if (structure === undefined) {
-    return { etatEpistemique: etatPrive.epistemique, faitsCrees, faitsMisAJour, traces }
+    const change = expiration.revisionsAppliquees.length > 0
+    return { etatEpistemique: change ? etatCourant : etatPrive.epistemique, faitsCrees, faitsMisAJour, revisionsAppliquees: expiration.revisionsAppliquees, traces }
   }
-  validerStructureEpistemique(structure)
   if (!perception?.perceptible || perception.precision === PRECISIONS_PERCEPTION.AUCUNE) {
     traces.push(creerTrace({ etape: ETAPES_TRACE_EPISTEMIQUE.AUCUNE_PERCEPTION, participantId, evenementId: evenementCanonique.id, genererId, date }))
-    return { etatEpistemique: etatPrive.epistemique, faitsCrees, faitsMisAJour, traces }
-  }
-  if (structure.propositions.length === 0) {
-    traces.push(creerTrace({ etape: ETAPES_TRACE_EPISTEMIQUE.AUCUNE_PROPOSITION, participantId, evenementId: evenementCanonique.id, genererId, date }))
-    return { etatEpistemique: etatPrive.epistemique, faitsCrees, faitsMisAJour, traces }
+    return { etatEpistemique: expiration.revisionsAppliquees.length ? etatCourant : etatPrive.epistemique, faitsCrees, faitsMisAJour, revisionsAppliquees: expiration.revisionsAppliquees, traces }
   }
 
-  for (const entree of structure.propositions) {
+  const revision = appliquerRevisionsEpistemiques({
+    participant, perception, evenementCanonique, etatEpistemique: etatCourant,
+    revisions: structure.revisions ?? [], genererId, genererIdRevision,
+    genererIdVersionFait, date,
+  })
+  etatCourant = revision.etatEpistemique
+  traces.push(...revision.traces)
+  const revisionsAppliquees = [...expiration.revisionsAppliquees, ...revision.revisionsAppliquees]
+  const propositions = structure.propositions ?? []
+  if (propositions.length === 0) {
+    traces.push(creerTrace({ etape: ETAPES_TRACE_EPISTEMIQUE.AUCUNE_PROPOSITION, participantId, evenementId: evenementCanonique.id, genererId, date }))
+    const change = revisionsAppliquees.length > 0
+    return { etatEpistemique: change ? etatCourant : etatPrive.epistemique, faitsCrees, faitsMisAJour, revisionsAppliquees, traces }
+  }
+
+  let tableaux = {
+    ...etatCourant,
+    connaissances: [...etatCourant.connaissances],
+    croyances: [...etatCourant.croyances],
+  }
+
+  for (const entree of propositions) {
     if (Array.isArray(entree.participantsInformes) && !entree.participantsInformes.includes(participantId)) {
       traces.push(creerTrace({ etape: ETAPES_TRACE_EPISTEMIQUE.PROPOSITION_IGNOREE, participantId, evenementId: evenementCanonique.id, provenanceType: entree.provenanceType, genererId, date }))
       continue
@@ -241,7 +257,9 @@ export function mettreAJourEtatEpistemique({
     }
 
     const cle = type === TYPES_FAIT_EPISTEMIQUE.CONNAISSANCE ? 'connaissances' : 'croyances'
-    const index = tableaux[cle].findIndex(fait => fait.id === faitId && fait.statut === STATUTS_FAIT_EPISTEMIQUE.ACTIF)
+    const index = tableaux[cle].findIndex(fait =>
+      (fait.id === faitId || fait.racineFaitId === faitId) && fait.statut === STATUTS_FAIT_EPISTEMIQUE.ACTIF
+    )
     if (index >= 0) {
       const precedent = tableaux[cle][index]
       const misAJour = {
@@ -276,11 +294,19 @@ export function mettreAJourEtatEpistemique({
     }
   }
 
-  return { etatEpistemique: tableaux, faitsCrees, faitsMisAJour, traces }
+  return { etatEpistemique: tableaux, faitsCrees, faitsMisAJour, revisionsAppliquees, traces }
 }
 
 export {
   TYPES_FAIT_EPISTEMIQUE,
   STATUTS_FAIT_EPISTEMIQUE,
   TYPES_PROVENANCE_EPISTEMIQUE,
+  OPERATIONS_REVISION_EPISTEMIQUE,
+  appliquerExpirationsEpistemiques,
+  appliquerRevisionsEpistemiques,
+  selectionnerFaitsEpistemiquesActifs,
+  validerRevisionsEpistemiques,
+  CODES_ERREUR_EPISTEMIQUE,
+  ErreurEpistemique,
+  ETAPES_TRACE_EPISTEMIQUE,
 }

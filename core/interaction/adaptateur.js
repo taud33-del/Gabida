@@ -23,6 +23,7 @@
  */
 
 import { TYPES_ACTION_PARTICIPANT } from '../../constants/TypesActionParticipant.js'
+import { selectionnerFaitsEpistemiquesActifs } from '../epistemique/revision.js'
 
 // ─── Constantes locales d'orchestration ──────────────────────────────────────
 //
@@ -119,7 +120,9 @@ export function construireEtatV1(participantId, etatInteraction) {
     memoireVecue : memoire,
     historique   : etatPrive.historique ?? [],
     meta,
-    epistemique  : etatPrive.epistemique,
+    epistemique  : etatPrive.epistemique === undefined
+      ? undefined
+      : selectionnerFaitsEpistemiquesActifs(etatPrive.epistemique),
   }
 }
 

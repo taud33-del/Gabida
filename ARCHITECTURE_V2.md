@@ -804,3 +804,105 @@ RFC-007 n'ajoute ni extraction depuis le texte, raisonnement logique, inference
 LLM, detection de mensonge, resolution automatique de contradiction, oubli,
 decroissance de confiance, fusion probabiliste, partage automatique, theorie
 de l'esprit ou integration Hadelas.
+
+# RFC-008 — Cycle de vie epistemique deterministe
+
+## Role et compatibilite
+
+RFC-008 fait evoluer explicitement les connaissances et croyances creees par
+RFC-007. Elle n'interprete jamais une proposition, le texte d'un evenement ou
+l'etat canonique. Sans `metadata.epistemique.revisions` et sans expiration
+arrivee a echeance, le traitement RFC-007 demeure strictement identique. Les
+anciens faits sans donnees de version restent valides et ne sont pas migres.
+
+## Statuts et vue active
+
+`STATUTS_FAIT_EPISTEMIQUE` comprend desormais :
+
+- `actif` : fait actuellement utilisable par le pipeline ;
+- `suspendu` : fait conserve, temporairement exclu du contexte actif ;
+- `obsolete` : fait explicitement depasse par le temps ou le contexte ;
+- `expire` : fait dont la date d'expiration explicite a ete atteinte ;
+- `remplace` : version a laquelle une nouvelle version succede ;
+- `contredit` : fait contredit par une proposition explicite ;
+- `invalide` : fait explicitement invalide.
+
+La fonction pure `selectionnerFaitsEpistemiquesActifs()` construit
+`connaissancesActives` et `croyancesActives`. Seul le statut `actif` entre dans
+la vue transmise a `executeTurn()`. L'etat prive conserve toutes les versions,
+provenances et revisions ; il n'est jamais remplace par cette vue filtree.
+
+## RevisionEpistemique et instructions
+
+Le contrat `RevisionEpistemique` journalise l'identifiant de revision, le
+participant, le fait cible, l'operation, les confiances et statuts avant/apres,
+la raison, l'evenement, la date injectee et les metadata. Les instructions
+proviennent exclusivement de `evenement.metadata.epistemique.revisions`.
+`faitId` et `operation` sont requis. `participantsConcernes` limite la revision
+aux participants qui ont effectivement percu l'evenement. Une revision visant
+un autre participant est ignoree et tracee, sans resolution de son fait.
+
+Les operations explicites sont :
+
+- `renforcer` : ACTIF ou SUSPENDU, ajoute une valeur de [0, 1], plafond 1 ;
+- `affaiblir` : ACTIF ou SUSPENDU, soustrait une valeur de [0, 1], plancher 0 ;
+- `suspendre` : ACTIF vers SUSPENDU ;
+- `reactiver` : SUSPENDU vers ACTIF ;
+- `rendre_obsolete` : ACTIF ou SUSPENDU vers OBSOLETE ;
+- `expirer` : ACTIF ou SUSPENDU vers EXPIRE si la date explicite est atteinte ;
+- `invalider` : ACTIF ou SUSPENDU vers INVALIDE.
+
+Une confiance egale a zero n'invalide rien automatiquement. OBSOLETE, EXPIRE,
+REMPLACE, CONTREDIT et INVALIDE sont terminaux dans RFC-008. Il n'existe aucune
+transition semantique, implicite ou issue d'un LLM.
+
+## Versionnage et historique immuable
+
+RFC-008 utilise un `id` unique par version. `racineFaitId` reste egal a l'id du
+fait initial, `faitPrecedentId` pointe vers la version precedente et `version`
+commence implicitement a 1 pour les faits RFC-007. La premiere revision cree la
+version 2. `revisionIds` est deduplique. Dans le nouvel etat, la version
+precedente est conservee avec le statut REMPLACE et la nouvelle version porte
+le resultat de la transition. Aucune entree de l'etat fourni n'est mutee ou
+supprimee. Le journal `revisions` conserve les contrats appliques.
+
+Les identifiants de revision et de version sont fournis par
+`genererIdRevision` et `genererIdVersionFait`. Le moteur ne derive aucun id par
+serialisation de proposition.
+
+## Expiration deterministe
+
+Une expiration automatique est possible uniquement pour un fait ACTIF ou
+SUSPENDU portant une `dateExpiration` ISO valide. Elle compare cette date a la
+date explicitement injectee dans l'interaction. Elle n'utilise jamais
+`Date.now()` ni une autre horloge implicite. Si l'echeance n'est pas atteinte,
+l'etat reste identique. Une expiration due cree une revision et une version,
+comme toute autre transition.
+
+## Ordre, atomicite et integration
+
+Pour chaque participant et avant son pipeline, l'ordre est : validation de
+l'etat et de toutes les structures, expirations dues, revisions explicites,
+contradictions/remplacements RFC-007, propositions RFC-007, puis construction
+de la vue active. Toutes les revisions d'une etape sont resolues et leurs
+transitions verifiees dans un etat de travail prive avant que le resultat soit
+retourne. Une seule erreur annule revisions et propositions de l'etape et
+empeche tout lancement du pipeline ; l'etat initial demeure intact.
+
+RFC-005 conserve l'etat revise de l'etape N pour l'etape N+1 et maintient le
+meme etat initial pour les participants d'une meme etape. RFC-006 conditionne
+l'application d'une revision a une perception effective. Chaque participant
+ne recoit que sa propre vue active. Ni revision ni fait epistemique n'entre
+dans la FIFO ou l'historique canonique.
+
+Les traces RFC-008 exposent uniquement ids, operation, statuts, confiances,
+evenement et raison. Elles ne recopient jamais la proposition complete.
+
+## Erreurs et limites volontaires
+
+`ErreurEpistemique`, sous-classe de `ErreurValidation`, couvre les revisions,
+operations, valeurs, cibles, transitions, dates, generateurs et versions
+invalides avec des codes stables. RFC-008 n'ajoute aucune contradiction
+semantique, logique, verite probabiliste, oubli ou decroissance automatique,
+confiance envers les sources, mensonge, theorie de l'esprit, propagation de
+croyances, resolution narrative, decision LLM ou integration Hadelas.
