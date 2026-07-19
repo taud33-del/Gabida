@@ -24,6 +24,7 @@
 
 import { TYPES_ACTION_PARTICIPANT } from '../../constants/TypesActionParticipant.js'
 import { selectionnerFaitsEpistemiquesActifs } from '../epistemique/revision.js'
+import { selectionnerRelationsActives } from '../relations/index.js'
 
 // ─── Constantes locales d'orchestration ──────────────────────────────────────
 //
@@ -123,6 +124,9 @@ export function construireEtatV1(participantId, etatInteraction) {
     epistemique  : etatPrive.epistemique === undefined
       ? undefined
       : selectionnerFaitsEpistemiquesActifs(etatPrive.epistemique),
+    relations    : etatPrive.relations === undefined
+      ? undefined
+      : selectionnerRelationsActives(etatPrive.relations),
   }
 }
 

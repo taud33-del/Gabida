@@ -906,3 +906,64 @@ invalides avec des codes stables. RFC-008 n'ajoute aucune contradiction
 semantique, logique, verite probabiliste, oubli ou decroissance automatique,
 confiance envers les sources, mensonge, theorie de l'esprit, propagation de
 croyances, resolution narrative, decision LLM ou integration Hadelas.
+
+# RFC-009 - Relations directionnelles entre participants
+
+RFC-009 introduit un etat relationnel prive, explicite et deterministe. Une
+relation appartient a un participant et vise exactement un autre participant.
+La relation inverse est un objet distinct : aucune reciprocite n'est deduite.
+Chaque proprietaire conserve ses relations dans
+`etatsPrives[participantId].relations.parParticipantId[cibleParticipantId]`.
+
+Le module `core/relations` a une responsabilite unique : valider et appliquer
+les instructions relationnelles explicites de
+`evenement.metadata.relations.misesAJour`, puis construire la vue active du
+participant courant. Il ne contient aucune analyse narrative, aucune decision
+IA et aucune interpretation implicite des actions ou des faits epistemiques.
+
+## Dimensions, modes et cycle de vie
+
+Les dimensions sont extensibles. Chaque nom non vide porte un nombre fini dans
+`[-1, 1]`. Les dimensions standard documentees sont confiance, sympathie,
+respect, familiarite, autorite, peur, loyaute et hostilite.
+
+Le mode `remplacer`, utilise par defaut, remplace uniquement les dimensions
+fournies. Le mode `ajuster` additionne chaque delta a la valeur courante (ou a
+zero si la dimension n'existe pas) et borne le resultat dans `[-1, 1]`.
+
+Une relation est creee `active`. Les transitions explicites autorisees sont
+ACTIVE vers SUSPENDUE, SUSPENDUE vers ACTIVE, ACTIVE ou SUSPENDUE vers TERMINEE,
+et tout statut non INVALIDE vers INVALIDE. TERMINEE et INVALIDE ne peuvent pas
+redevenir ACTIVE. L'identifiant d'une relation existante ne change jamais.
+
+## Provenance, perception et confidentialite
+
+Chaque application ajoute une provenance immuable et deduplique l'identifiant
+canonique de l'evenement dans `evenementSourceIds`. Une instruction ne
+s'applique que si son proprietaire a percu cet evenement et, lorsque
+`participantsConcernes` existe, s'il y figure. Une instruction appartenant a
+un autre participant n'est jamais appliquee a l'etat courant.
+
+`selectionnerRelationsActives()` transmet au pipeline uniquement la vue active
+du participant courant, indexee par cible et limitee a `dimensions`, `statut`
+et `metadata`. Identifiants internes, provenances, evenements sources, statuts
+inactifs et relations des autres participants ne sont pas exposes.
+
+## Ordre, atomicite et compatibilite
+
+L'ordre du tour demeure : validation initiale, perception RFC-006, mises a jour
+epistemiques RFC-007/RFC-008, mises a jour relationnelles RFC-009, construction
+de l'etat prive du pipeline, puis l'unique `executeTurn()`. RFC-009 ne modifie ni
+l'orchestrateur RFC-004, ni la FIFO RFC-005, ni le pipeline cognitif.
+
+Toutes les structures, participants, cibles, dimensions, modes, provenances,
+statuts et transitions sont verifies avant qu'un resultat relationnel soit
+expose. Toute erreur est une `ErreurRelation`, sous-classe de
+`ErreurValidation`; elle annule l'etape, empeche l'appel fournisseur et laisse
+l'etat initial intact. Les relations ne sont ajoutees ni a la FIFO ni a
+l'historique canonique.
+
+En l'absence de `metadata.relations`, aucun champ relationnel n'est cree et le
+comportement RFC-008, y compris le message narratif, reste strictement inchange.
+RFC-009 n'ajoute volontairement aucune evolution automatique, reciprocite,
+propagation, inference sociale, theorie de l'esprit ou decision narrative.

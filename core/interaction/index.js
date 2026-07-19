@@ -59,6 +59,10 @@ import {
   mettreAJourEtatEpistemique,
   validerEtatEpistemique,
 } from '../epistemique/index.js'
+import {
+  mettreAJourRelationsParticipant,
+  validerRelationsParticipant,
+} from '../relations/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -365,6 +369,7 @@ function evaluerPerceptions({
   genererIdEpistemique,
   genererIdRevision,
   genererIdVersionFait,
+  genererIdRelation,
 }) {
   const participantsSelectionnes = []
   const traces = []
@@ -397,10 +402,24 @@ function evaluerPerceptions({
       date,
     })
     traces.push(...resultatEpistemique.traces)
-    if (resultatEpistemique.etatEpistemique !== undefined) {
+    const etatPriveApresEpistemique = resultatEpistemique.etatEpistemique === undefined
+      ? etatPrivePrecedent
+      : { ...etatPrivePrecedent, epistemique: resultatEpistemique.etatEpistemique }
+    const resultatRelations = mettreAJourRelationsParticipant({
+      participant: evaluation.participant,
+      perception: evaluation.perception,
+      evenementCanonique: evenement,
+      etatPrive: etatPriveApresEpistemique,
+      participants: etatInteraction.participants,
+      genererId,
+      genererIdRelation,
+      date,
+    })
+    traces.push(...resultatRelations.traces)
+    if (resultatEpistemique.etatEpistemique !== undefined || resultatRelations.relations !== undefined) {
       etatsPrives[evaluation.participant.id] = {
-        ...etatPrivePrecedent,
-        epistemique: resultatEpistemique.etatEpistemique,
+        ...etatPriveApresEpistemique,
+        ...(resultatRelations.relations === undefined ? {} : { relations: resultatRelations.relations }),
       }
     }
     if (!evaluation.perception.perceptible) continue
@@ -616,6 +635,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   validerEtatInteraction(etatInteraction)
   for (const [participantId, etatPrive] of Object.entries(etatInteraction.etatsPrives)) {
     validerEtatEpistemique(etatPrive?.epistemique, participantId)
+    validerRelationsParticipant(etatPrive?.relations, participantId, etatInteraction.participants)
   }
 
   const date = typeof dependances.date === 'string'
@@ -633,6 +653,9 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   const genererIdVersionFait = typeof dependances.genererIdVersionFait === 'function'
     ? dependances.genererIdVersionFait
     : () => genererId('version_fait_epistemique')
+  const genererIdRelation = typeof dependances.genererIdRelation === 'function'
+    ? dependances.genererIdRelation
+    : undefined
 
   if (optionsPropagation.active) {
     return propagerInteraction({
@@ -651,6 +674,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererIdEpistemique,
           genererIdRevision,
           genererIdVersionFait,
+          genererIdRelation,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -677,6 +701,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     genererIdEpistemique,
     genererIdRevision,
     genererIdVersionFait,
+    genererIdRelation,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -729,6 +754,19 @@ export {
   validerRevisionsEpistemiques,
   OPERATIONS_REVISION_EPISTEMIQUE,
 } from '../epistemique/index.js'
+export {
+  CODES_ERREUR_RELATION,
+  ErreurRelation,
+  ETAPES_TRACE_RELATION,
+  STATUTS_RELATION_PARTICIPANT,
+  TYPES_PROVENANCE_RELATION,
+  MODES_MISE_A_JOUR_RELATION,
+  DIMENSIONS_RELATION_STANDARD,
+  mettreAJourRelationsParticipant,
+  selectionnerRelationsActives,
+  validerRelationsParticipant,
+  validerStructureRelations,
+} from '../relations/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
   ErreurPropagation,
