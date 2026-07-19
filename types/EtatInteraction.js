@@ -30,6 +30,8 @@
  *
  * @property {Object.<string, Object>} etatsPrives
  *   [obligatoire] États privés indexés par participantId. Peut être un objet vide.
+ *   Chaque etat peut contenir un tableau optionnel `perceptions`, historique
+ *   minimal propre au participant et distinct des souvenirs et croyances.
  *
  * @property {Object.<string, Object>} memoires
  *   [obligatoire] Mémoires indexées par participantId. Peut être un objet vide.

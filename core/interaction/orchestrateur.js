@@ -48,10 +48,18 @@ export function ordonnerParticipants(participantsSelectionnes) {
   return [...participantsSelectionnes]
 }
 
-export function agregerResultats({ sollicitation, etatInitial, resultatsParticipants }) {
+export function agregerResultats({
+  sollicitation,
+  etatInitial,
+  resultatsParticipants,
+  tracesSupplementaires = [],
+}) {
   const actions            = resultatsParticipants.map(resultat => resultat.action)
   const evenementsProduits = resultatsParticipants.map(resultat => resultat.evenementProduit)
-  const traces             = resultatsParticipants.flatMap(resultat => resultat.traces)
+  const traces             = [
+    ...tracesSupplementaires,
+    ...resultatsParticipants.flatMap(resultat => resultat.traces),
+  ]
 
   const etatsPrives = { ...etatInitial.etatsPrives }
   for (const resultat of resultatsParticipants) {
@@ -92,6 +100,7 @@ export async function orchestrerTour({
   sollicitation,
   etatInitial,
   executerParticipant,
+  tracesSupplementaires = [],
 }) {
   validerParticipantsUniques(participantsSelectionnes)
   const participantsOrdonnes = ordonnerParticipants(participantsSelectionnes)
@@ -101,5 +110,10 @@ export async function orchestrerTour({
     resultatsParticipants.push(await executerParticipant(cible, etatInitial))
   }
 
-  return agregerResultats({ sollicitation, etatInitial, resultatsParticipants })
+  return agregerResultats({
+    sollicitation,
+    etatInitial,
+    resultatsParticipants,
+    tracesSupplementaires,
+  })
 }
