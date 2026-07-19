@@ -6,6 +6,7 @@ import {
   ordonnerParticipants,
   selectionnerParticipants,
 } from './orchestrateur.js'
+import { ErreurValidation } from '../index.js'
 
 const evenement = Object.freeze({ id: 'evt-1', type: 'test' })
 const sollicitation = Object.freeze({ id: 'sol-1', evenement })
@@ -68,6 +69,7 @@ describe('RFC-004 — orchestration deterministe', () => {
     })
 
     await expect(tour).rejects.toBeInstanceOf(ErreurOrchestration)
+    await expect(tour).rejects.toBeInstanceOf(ErreurValidation)
     await expect(tour).rejects.toMatchObject({
       name: 'ErreurOrchestration',
       code: CODES_ERREUR_ORCHESTRATION.PARTICIPANT_DUPLIQUE,

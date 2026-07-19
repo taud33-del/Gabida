@@ -5,11 +5,13 @@
  * conservation de l'ordre recu, un traitement par participant, puis agregation.
  */
 
+import { ErreurValidation } from '../index.js'
+
 export const CODES_ERREUR_ORCHESTRATION = Object.freeze({
   PARTICIPANT_DUPLIQUE: 'participant_duplique',
 })
 
-export class ErreurOrchestration extends Error {
+export class ErreurOrchestration extends ErreurValidation {
   constructor(code, message, participantId) {
     super(message)
     this.name = 'ErreurOrchestration'
