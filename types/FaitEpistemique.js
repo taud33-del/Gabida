@@ -12,4 +12,9 @@
  * @property {string} dateCreation
  * @property {string} dateMiseAJour
  * @property {Object} metadata
+ * @property {number} [version]
+ * @property {string|null} [faitPrecedentId]
+ * @property {string} [racineFaitId]
+ * @property {string|null} [dateExpiration]
+ * @property {string[]} [revisionIds]
  */

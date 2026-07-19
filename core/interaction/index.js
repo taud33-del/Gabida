@@ -363,6 +363,8 @@ function evaluerPerceptions({
   date,
   participantIdsSansValidation = [],
   genererIdEpistemique,
+  genererIdRevision,
+  genererIdVersionFait,
 }) {
   const participantsSelectionnes = []
   const traces = []
@@ -390,6 +392,8 @@ function evaluerPerceptions({
       etatPrive: etatPrivePrecedent,
       genererId,
       genererIdEpistemique,
+      genererIdRevision,
+      genererIdVersionFait,
       date,
     })
     traces.push(...resultatEpistemique.traces)
@@ -581,6 +585,9 @@ export async function traiterParticipantUnique({
  * @param {() => string} [dependances.genererIdEpistemique]
  *   [optionnel] Générateur utilisé uniquement lorsque les métadonnées
  *   épistémiques ne fournissent aucun identifiant stable.
+ * @param {() => string} [dependances.genererIdRevision]
+ * @param {() => string} [dependances.genererIdVersionFait]
+ *   Générateurs injectables des révisions et versions RFC-008.
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
@@ -620,6 +627,12 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   const genererIdEpistemique = typeof dependances.genererIdEpistemique === 'function'
     ? dependances.genererIdEpistemique
     : undefined
+  const genererIdRevision = typeof dependances.genererIdRevision === 'function'
+    ? dependances.genererIdRevision
+    : () => genererId('revision_epistemique')
+  const genererIdVersionFait = typeof dependances.genererIdVersionFait === 'function'
+    ? dependances.genererIdVersionFait
+    : () => genererId('version_fait_epistemique')
 
   if (optionsPropagation.active) {
     return propagerInteraction({
@@ -636,6 +649,8 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           date,
           participantIdsSansValidation: evenement.emetteurId ? [evenement.emetteurId] : [],
           genererIdEpistemique,
+          genererIdRevision,
+          genererIdVersionFait,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -660,6 +675,8 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     genererId,
     date,
     genererIdEpistemique,
+    genererIdRevision,
+    genererIdVersionFait,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -706,6 +723,11 @@ export {
   mettreAJourEtatEpistemique,
   validerEtatEpistemique,
   validerStructureEpistemique,
+  appliquerExpirationsEpistemiques,
+  appliquerRevisionsEpistemiques,
+  selectionnerFaitsEpistemiquesActifs,
+  validerRevisionsEpistemiques,
+  OPERATIONS_REVISION_EPISTEMIQUE,
 } from '../epistemique/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
