@@ -116,6 +116,73 @@ describe('RFC-012 - resolution deterministe des conflits', () => {
     expect(resultat.intentionsEcarteesParConflit.map(item => item.id)).toEqual(['requise', 'dependante'])
   })
 
+  test('realloue une ressource apres invalidation de la gagnante par dependance', () => {
+    const resultat = resoudreConflitsActions(entrees([
+      intention('x', 'x', 300, 0, { cleExclusivite: 'x' }),
+      intention('a', 'a', 200, 1, {
+        idsIntentionsRequises: ['x'],
+        ressourcesConsommees: [{ ressourceId: 'r', quantite: 1 }],
+      }),
+      intention('b', 'b', 100, 2, {
+        ressourcesConsommees: [{ ressourceId: 'r', quantite: 1 }],
+      }),
+      intention('bloque-x', 'z', 400, 3, { cleExclusivite: 'x' }),
+    ], { r: 1 }))
+    expect(resultat.ordreExecutionFinal).toEqual(['bloque-x', 'b'])
+    expect(resultat.intentionsEcarteesParConflit.map(item => item.id)).toEqual(['x', 'a'])
+  })
+
+  test('realloue une cle exclusive apres invalidation de la gagnante par dependance', () => {
+    const resultat = resoudreConflitsActions(entrees([
+      intention('x', 'x', 300, 0, { cleExclusivite: 'condition' }),
+      intention('a', 'a', 200, 1, {
+        idsIntentionsRequises: ['x'], cleExclusivite: 'action-exclusive',
+      }),
+      intention('b', 'b', 100, 2, { cleExclusivite: 'action-exclusive' }),
+      intention('bloque-x', 'z', 400, 3, { cleExclusivite: 'condition' }),
+    ]))
+    expect(resultat.ordreExecutionFinal).toEqual(['bloque-x', 'b'])
+    expect(resultat.intentionsEcarteesParConflit.map(item => item.id)).toEqual(['x', 'a'])
+  })
+
+  test('libere les ressources apres une cascade de dependances', () => {
+    const resultat = resoudreConflitsActions(entrees([
+      intention('c', 'c', 300, 0, { cleExclusivite: 'condition' }),
+      intention('b', 'b', 250, 1, {
+        idsIntentionsRequises: ['c'],
+        ressourcesConsommees: [{ ressourceId: 'r', quantite: 1 }],
+      }),
+      intention('a', 'a', 200, 2, {
+        idsIntentionsRequises: ['b'],
+        ressourcesConsommees: [{ ressourceId: 's', quantite: 1 }],
+      }),
+      intention('apres-r', 'd', 100, 3, {
+        ressourcesConsommees: [{ ressourceId: 'r', quantite: 1 }],
+      }),
+      intention('apres-s', 'e', 90, 4, {
+        ressourcesConsommees: [{ ressourceId: 's', quantite: 1 }],
+      }),
+      intention('bloque-c', 'z', 400, 5, { cleExclusivite: 'condition' }),
+    ], { r: 1, s: 1 }))
+    expect(resultat.ordreExecutionFinal).toEqual(['bloque-c', 'apres-r', 'apres-s'])
+    expect(resultat.intentionsEcarteesParConflit.map(item => item.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  test('reproduit exactement le point fixe de resolution', () => {
+    const entree = entrees([
+      intention('x', 'x', 300, 0, { cleExclusivite: 'condition' }),
+      intention('a', 'a', 200, 1, {
+        idsIntentionsRequises: ['x'],
+        ressourcesConsommees: [{ ressourceId: 'r', quantite: 1 }],
+      }),
+      intention('b', 'b', 100, 2, {
+        ressourcesConsommees: [{ ressourceId: 'r', quantite: 1 }],
+      }),
+      intention('bloque-x', 'z', 400, 3, { cleExclusivite: 'condition' }),
+    ], { r: 1 })
+    expect(resoudreConflitsActions(entree)).toEqual(resoudreConflitsActions(entree))
+  })
+
   test('rejette une dependance inconnue avant resolution', () => {
     expect(() => resoudreConflitsActions(entrees([
       intention('a', 'a', 100, 0, { idsIntentionsRequises: ['absente'] }),
