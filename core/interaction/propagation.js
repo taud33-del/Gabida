@@ -154,6 +154,7 @@ export async function propagerInteraction({
   const actions = []
   const evenementsProduits = []
   const traces = []
+  const intentionsRetenues = []
   let etatCourant = etatInitial
   let nombreEvenementsTraites = 0
 
@@ -209,10 +210,16 @@ export async function propagerInteraction({
         }
     const participantsSelectionnes = perceptionEtape.participantsSelectionnes
       .filter(({ participant }) => participant.id !== evenement.emetteurId)
+    const idsParticipantsSelectionnes = new Set(
+      participantsSelectionnes.map(({ participant }) => participant.id)
+    )
+    const intentionsEtape = (perceptionEtape.intentionsRetenues ?? [])
+      .filter(intention => idsParticipantsSelectionnes.has(intention.participantId))
     const etatEtapeEpistemique = perceptionEtape.etatInteractionMisAJour ?? etatCourant
 
     const resultatEtape = await orchestrerTour({
       participantsSelectionnes,
+      intentionsRetenues: intentionsEtape,
       sollicitation: sollicitationEtape,
       etatInitial: etatEtapeEpistemique,
       tracesSupplementaires: perceptionEtape.traces,
@@ -224,6 +231,7 @@ export async function propagerInteraction({
     })
 
     actions.push(...resultatEtape.actions)
+    intentionsRetenues.push(...resultatEtape.intentionsRetenues)
     evenementsProduits.push(...resultatEtape.evenementsProduits)
     traces.push(...resultatEtape.traces)
 
@@ -263,6 +271,7 @@ export async function propagerInteraction({
 
   return {
     sollicitationId: sollicitation.id,
+    intentionsRetenues,
     actions,
     evenementsProduits,
     etat: { ...etatCourant, historique: [...historique] },

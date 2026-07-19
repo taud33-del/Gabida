@@ -69,6 +69,7 @@ import {
   preparerTransmissionsInformation,
   validerEtatTransmissions,
 } from '../transmissions/index.js'
+import { preparerOrchestrationIntentions } from '../arbitrage/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -377,6 +378,7 @@ function evaluerPerceptions({
   genererIdVersionFait,
   genererIdRelation,
   genererIdTransmission,
+  producteurIntentions,
 }) {
   const participantsSelectionnes = []
   const traces = []
@@ -481,8 +483,15 @@ function evaluerPerceptions({
     date,
   })
   traces.push(...resultatTransmissions.traces)
-  return {
+  const resultatArbitrage = preparerOrchestrationIntentions({
     participantsSelectionnes,
+    evenement,
+    producteur: producteurIntentions,
+  })
+  return {
+    participantsSelectionnes: resultatArbitrage.participantsArbitres,
+    intentionsRetenues: resultatArbitrage.intentionsRetenues,
+    intentionsEcartees: resultatArbitrage.intentionsEcartees,
     traces,
     etatInteractionMisAJour: { ...etatInteraction, etatsPrives: resultatTransmissions.etatsPrives },
   }
@@ -656,6 +665,10 @@ export async function traiterParticipantUnique({
  *   Générateurs injectables des révisions et versions RFC-008.
  * @param {() => string} [dependances.genererIdTransmission]
  *   Generateur injectable des identifiants de transmission RFC-010.
+ * @param {(entree: object) => import('../../types/Intention.js').Intention[]}
+ *   [dependances.producteurIntentions]
+ *   Producteur pur et deterministe injectable pour RFC-011. Par defaut, une
+ *   intention d execution de priorite normale est produite par cible.
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
@@ -709,6 +722,9 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   const genererIdTransmission = typeof dependances.genererIdTransmission === 'function'
     ? dependances.genererIdTransmission
     : undefined
+  const producteurIntentions = typeof dependances.producteurIntentions === 'function'
+    ? dependances.producteurIntentions
+    : undefined
 
   if (optionsPropagation.active) {
     return propagerInteraction({
@@ -729,6 +745,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererIdVersionFait,
           genererIdRelation,
           genererIdTransmission,
+          producteurIntentions,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -757,6 +774,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     genererIdVersionFait,
     genererIdRelation,
     genererIdTransmission,
+    producteurIntentions,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -764,6 +782,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   // qu'après réussite de tous les traitements (atomicité, pas de résultat partiel).
   return orchestrerTour({
     participantsSelectionnes: perceptionInitiale.participantsSelectionnes,
+    intentionsRetenues: perceptionInitiale.intentionsRetenues,
     sollicitation,
     etatInitial: perceptionInitiale.etatInteractionMisAJour,
     tracesSupplementaires: perceptionInitiale.traces,
@@ -834,6 +853,20 @@ export {
   preparerTransmissionsInformation,
   validerEtatTransmissions,
 } from '../transmissions/index.js'
+export {
+  CODES_ERREUR_INTENTION,
+  ErreurIntention,
+  PRIORITES_INTENTION,
+  STATUTS_INTENTION,
+  TYPES_INTENTION,
+  produireIntentionsExecution,
+  validerIntentions,
+} from '../intentions/index.js'
+export {
+  arbitrerIntentions,
+  comparerIntentions,
+  preparerOrchestrationIntentions,
+} from '../arbitrage/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
   ErreurPropagation,

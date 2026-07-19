@@ -1059,3 +1059,67 @@ automatique, persuasion, reputation, confiance envers les sources, calcul
 relationnel, rumeur, propagation virale, contradiction semantique, theorie de
 l'esprit, priorite de parole, resolution de conflit, appel LLM ou integration
 Hadelas.
+
+# RFC-011 - Intentions, priorites et arbitrage deterministe
+
+RFC-011 introduit une couche structurelle entre la perception et les evolutions
+privees deja existantes, d'une part, et l'orchestrateur RFC-004, d'autre part.
+Un participant selectionne n'est plus transmis directement a l'orchestrateur :
+une intention d'execution est d'abord produite, puis la liste complete est
+arbitree. L'orchestrateur recoit uniquement les cibles associees aux intentions
+retenues et conserve strictement sa responsabilite, son atomicite et la regle
+« une execution par participant ».
+
+## Contrats et production
+
+`Intention` contient un identifiant stable, le participant, un type, une
+priorite numerique, un ordre de creation FIFO, une cible optionnelle, un contenu
+optionnel, un statut et des metadata. `ResultatArbitrage` separe les intentions
+retenues des intentions ecartees. Les types, priorites usuelles et statuts sont
+portes par `TYPES_INTENTION`, `PRIORITES_INTENTION` et `STATUTS_INTENTION`.
+
+Le producteur par defaut cree exactement une intention
+`execution_participant` par cible perceptible, dans l'ordre recu. Son id est
+derive de l'id de l'evenement, du participant et de l'ordre FIFO. Il ne consulte
+ni l'horloge systeme, ni une source aleatoire, ni un provider. Un producteur pur
+peut etre injecte pour fournir plusieurs intentions ou des priorites explicites,
+sans deplacer de logique cognitive dans l'arbitrage.
+
+## Arbitrage
+
+L'ordre total est, sans exception : priorite decroissante, ordre de creation
+croissant (FIFO), `participantId` croissant, puis `id` croissant. Les
+comparaisons textuelles sont ordinales et ne dependent pas de la locale. La
+fonction ne mute jamais la liste ni les intentions recues.
+
+Pour preserver RFC-004, une seule intention est retenue par participant. Dans
+l'ordre total, la premiere est marquee `retenue` et les suivantes sont marquees
+`ecartee`. L'ordre des participants transmis a l'orchestrateur est exactement
+l'ordre des intentions retenues. A priorite normale par defaut, cet ordre reste
+celui de `participantIdsCibles`.
+
+## Pipeline et compatibilite
+
+L'ordre pertinent devient : perception, evolutions epistemiques RFC-007/RFC-008,
+transmissions RFC-010 et relations RFC-009 deja preparees, production des
+intentions, arbitrage, puis orchestrateur RFC-004 et unique `executeTurn()` par
+participant retenu. Le chemin de propagation RFC-005 applique le meme arbitrage
+a chaque evenement depile et agrege les intentions retenues dans l'ordre FIFO.
+
+`ResultatInteraction.intentionsRetenues` expose la liste finale deja arbitree.
+Les actions, evenements, memoires, etats prives et traces restent produits et
+agreges par les modules existants. RFC-011 ne modifie aucune regle de
+perception, connaissance, croyance, relation, transmission ou propagation.
+
+## Atomicite et limites volontaires
+
+Toutes les intentions sont validees et arbitrees avant le premier appel au
+pipeline d'un participant. Une `ErreurIntention`, sous-classe
+d'`ErreurValidation`, rejette la liste entiere avant toute execution. Les ids
+d'intention dupliques, contrats invalides et participants introuvables sont
+refuses avec des codes stables.
+
+RFC-011 n'ajoute volontairement aucune intention narrative, planification,
+conflit semantique, cout, ressource, dependance entre intentions, hasard,
+probabilite, appel IA, appel LLM ou nouvelle propagation. Elle prepare seulement
+un point d'arbitrage deterministe pour les RFC futures.
