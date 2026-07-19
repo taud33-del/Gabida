@@ -724,3 +724,83 @@ RFC-006 n'ajoute ni espace, distance, ligne de vue, acoustique, probabilite,
 hallucination, interpretation subjective, mensonge, connaissance durable,
 croyance, contradiction, oubli, priorite narrative ou integration Hadelas.
 Ces responsabilites appartiennent aux RFC ulterieures.
+# RFC-007 — Connaissances et croyances individuelles
+
+## Verite, perception et etat epistemique
+
+RFC-007 distingue quatre plans sans les confondre : la verite canonique vit
+dans `etatPartage` et les evenements canoniques ; la perception est une
+information ponctuellement accessible ; une connaissance est un fait que
+Gabida considere explicitement etabli pour un participant ; une croyance est
+une proposition tenue pour vraie sans garantie canonique. Le moteur ne compare
+pas automatiquement ces faits au monde et ne demande pas au LLM de determiner
+la verite.
+
+L'etat prive optionnel `epistemique` contient deux historiques de
+`FaitEpistemique`, `connaissances` et `croyances`. Chaque fait porte son id, son
+participant, sa proposition, son type, son statut, sa confiance, ses
+provenances, ses sources et ses dates. Une `ProvenanceEpistemique` qualifie la
+source (`PERCEPTION_DIRECTE`, `COMMUNICATION`, `INFERENCE_EXPLICITE`, `SYSTEME`
+ou `IMPORT_INITIAL`) sans recopier une proposition sensible dans les traces.
+
+## Entrees explicites et creation
+
+Seules les propositions de `evenement.metadata.epistemique.propositions` sont
+traitees. Le contenu libre de l'evenement n'est jamais interprete. Pour chaque
+participant qui a effectivement percu l'evenement, `participantsInformes`
+limite eventuellement la destination epistemique. Un type explicite valide est
+respecte ; sinon une provenance `SYSTEME` cree une connaissance et toute autre
+provenance cree une croyance. Une connaissance explicite n'est pas une preuve
+de coherence avec `etatPartage`, et aucune croyance n'est promue
+automatiquement.
+
+La confiance explicite doit etre comprise entre 0 et 1. Sans valeur explicite,
+une perception `COMPLETE` donne 1, une perception `PARTIELLE` donne 0.6 et une
+perception `AUCUNE` ne cree aucun fait. Aucun seuil de verite, moyenne ou calcul
+probabiliste n'est applique.
+
+## Identite, mise a jour et historique
+
+L'identite utilise, dans l'ordre, `proposition.id`, l'id explicite de l'entree,
+puis `genererIdEpistemique()`. Aucune serialisation profonde de la proposition
+ne sert d'identifiant metier. Pour un fait actif du meme id et du meme type, la
+nouvelle provenance est ajoutee immuablement, les ids de sources sont
+dedupliques, la date est actualisee et la confiance devient
+`max(confianceExistante, confianceEntrante)`. Il n'existe donc aucun doublon
+actif cree par une simple mise a jour.
+
+Une entree peut designer `metadata.contreditFaitId` ou
+`metadata.remplaceFaitId`. Le fait actif cible est conserve et marque
+respectivement `CONTREDIT` ou `REMPLACE`, puis le nouveau fait actif est cree.
+Une cible absente est une erreur de validation atomique. Aucune contradiction
+semantique n'est detectee automatiquement.
+
+## Integration avec RFC-005 et RFC-006
+
+Apres la perception et avant `executeTurn()`, le moteur construit une nouvelle
+version du seul etat prive concerne et y applique la mise a jour epistemique.
+Le contexte V1 expose alors `epistemique` au pipeline sans modifier la signature
+ni l'unicite de `executeTurn()`. Un participant ne recoit jamais l'etat
+epistemique d'un autre participant.
+
+Dans une etape, toutes les mises a jour sont calculees depuis le meme etat
+initial. Apres aggregation, l'etat de l'etape N devient l'entree de N+1 dans la
+propagation. La FIFO et l'historique global restent exclusivement composes
+d'evenements canoniques : aucun fait epistemique ni copie percue n'y est ajoute.
+
+Les etats initiaux peuvent deja contenir des faits valides ; ils sont controles
+sans migration ni reecriture. Sans `metadata.epistemique`, aucun champ, fait ou
+trace epistemique n'est cree et le comportement RFC-006 reste inchange.
+
+## Traces, erreurs et limites
+
+Les etapes stables couvrent proposition ignoree, fait cree ou mis a jour, fait
+contredit ou remplace, absence de perception et absence de proposition.
+`ErreurEpistemique` etend `ErreurValidation` pour toute structure, type, statut,
+provenance, confiance, reference ou generation d'id invalide. Toute erreur est
+levee avant le premier pipeline de l'etape et preserve l'etat d'entree.
+
+RFC-007 n'ajoute ni extraction depuis le texte, raisonnement logique, inference
+LLM, detection de mensonge, resolution automatique de contradiction, oubli,
+decroissance de confiance, fusion probabiliste, partage automatique, theorie
+de l'esprit ou integration Hadelas.

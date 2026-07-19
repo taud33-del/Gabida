@@ -32,6 +32,8 @@
  *   [obligatoire] États privés indexés par participantId. Peut être un objet vide.
  *   Chaque etat peut contenir un tableau optionnel `perceptions`, historique
  *   minimal propre au participant et distinct des souvenirs et croyances.
+ *   Il peut aussi contenir `epistemique: { connaissances, croyances }`, etat
+ *   prive optionnel des faits epistemiques de ce seul participant.
  *
  * @property {Object.<string, Object>} memoires
  *   [obligatoire] Mémoires indexées par participantId. Peut être un objet vide.

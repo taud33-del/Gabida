@@ -119,6 +119,7 @@ export function construireEtatV1(participantId, etatInteraction) {
     memoireVecue : memoire,
     historique   : etatPrive.historique ?? [],
     meta,
+    epistemique  : etatPrive.epistemique,
   }
 }
 
@@ -134,7 +135,9 @@ export function construireEtatV1(participantId, etatInteraction) {
  */
 export function construirePlayerMessage(evenement, etatV1) {
   const contenu = evenement?.contenu
-  const texte = contenu && typeof contenu === 'object' ? contenu.texte : contenu
+  const texte = contenu && typeof contenu === 'object'
+    ? contenu.texte
+    : contenu
   const timestamp = Number.isFinite(Date.parse(evenement?.date)) ? Date.parse(evenement.date) : 0
 
   return {

@@ -55,6 +55,10 @@ import {
   construireEvenementPercu,
   construireTracesPerception,
 } from '../perception/index.js'
+import {
+  mettreAJourEtatEpistemique,
+  validerEtatEpistemique,
+} from '../epistemique/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -358,6 +362,7 @@ function evaluerPerceptions({
   genererId,
   date,
   participantIdsSansValidation = [],
+  genererIdEpistemique,
 }) {
   const participantsSelectionnes = []
   const traces = []
@@ -374,8 +379,26 @@ function evaluerPerceptions({
     }),
   }))
 
+  const etatsPrives = { ...etatInteraction.etatsPrives }
   for (const evaluation of evaluations) {
     traces.push(...construireTracesPerception(evaluation.perception, genererId, date))
+    const etatPrivePrecedent = etatInteraction.etatsPrives[evaluation.participant.id] ?? {}
+    const resultatEpistemique = mettreAJourEtatEpistemique({
+      participant: evaluation.participant,
+      perception: evaluation.perception,
+      evenementCanonique: evenement,
+      etatPrive: etatPrivePrecedent,
+      genererId,
+      genererIdEpistemique,
+      date,
+    })
+    traces.push(...resultatEpistemique.traces)
+    if (resultatEpistemique.etatEpistemique !== undefined) {
+      etatsPrives[evaluation.participant.id] = {
+        ...etatPrivePrecedent,
+        epistemique: resultatEpistemique.etatEpistemique,
+      }
+    }
     if (!evaluation.perception.perceptible) continue
     const sansValidation = participantIdsSansValidation.includes(evaluation.participant.id)
     const fiches = sansValidation
@@ -388,7 +411,11 @@ function evaluerPerceptions({
       evenementPercu: construireEvenementPercu(evenement, evaluation.perception),
     })
   }
-  return { participantsSelectionnes, traces }
+  return {
+    participantsSelectionnes,
+    traces,
+    etatInteractionMisAJour: { ...etatInteraction, etatsPrives },
+  }
 }
 
 // ─── Perception minimale ─────────────────────────────────────────────────────
@@ -551,6 +578,9 @@ export async function traiterParticipantUnique({
  * @param {(role?: string) => string} [dependances.genererId]
  *   [optionnel] Générateur d'identifiants (actions/événements/traces).
  *   Défaut : crypto.randomUUID. Injectable pour le déterminisme des tests.
+ * @param {() => string} [dependances.genererIdEpistemique]
+ *   [optionnel] Générateur utilisé uniquement lorsque les métadonnées
+ *   épistémiques ne fournissent aucun identifiant stable.
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
@@ -577,6 +607,9 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
 
   validerSollicitation(sollicitation)
   validerEtatInteraction(etatInteraction)
+  for (const [participantId, etatPrive] of Object.entries(etatInteraction.etatsPrives)) {
+    validerEtatEpistemique(etatPrive?.epistemique, participantId)
+  }
 
   const date = typeof dependances.date === 'string'
     ? dependances.date
@@ -584,6 +617,9 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
 
   const optionsPropagation = normaliserOptionsPropagation(dependances.propagation)
   const ciblesResolues = resoudreCiblesPourPerception(sollicitation, etatInteraction)
+  const genererIdEpistemique = typeof dependances.genererIdEpistemique === 'function'
+    ? dependances.genererIdEpistemique
+    : undefined
 
   if (optionsPropagation.active) {
     return propagerInteraction({
@@ -599,6 +635,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererId,
           date,
           participantIdsSansValidation: evenement.emetteurId ? [evenement.emetteurId] : [],
+          genererIdEpistemique,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -622,6 +659,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     etatInteraction,
     genererId,
     date,
+    genererIdEpistemique,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -630,7 +668,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   return orchestrerTour({
     participantsSelectionnes: perceptionInitiale.participantsSelectionnes,
     sollicitation,
-    etatInitial: etatInteraction,
+    etatInitial: perceptionInitiale.etatInteractionMisAJour,
     tracesSupplementaires: perceptionInitiale.traces,
     executerParticipant: ({ participant, fiches, perception, evenementPercu }, etatInitial) =>
       traiterParticipantUnique({
@@ -658,6 +696,17 @@ export {
   construireEvenementPercu,
   construireTracesPerception,
 } from '../perception/index.js'
+export {
+  CODES_ERREUR_EPISTEMIQUE,
+  ErreurEpistemique,
+  ETAPES_TRACE_EPISTEMIQUE,
+  STATUTS_FAIT_EPISTEMIQUE,
+  TYPES_FAIT_EPISTEMIQUE,
+  TYPES_PROVENANCE_EPISTEMIQUE,
+  mettreAJourEtatEpistemique,
+  validerEtatEpistemique,
+  validerStructureEpistemique,
+} from '../epistemique/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
   ErreurPropagation,
