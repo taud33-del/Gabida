@@ -5,6 +5,37 @@
  * conservation de l'ordre recu, un traitement par participant, puis agregation.
  */
 
+export const CODES_ERREUR_ORCHESTRATION = Object.freeze({
+  PARTICIPANT_DUPLIQUE: 'participant_duplique',
+})
+
+export class ErreurOrchestration extends Error {
+  constructor(code, message, participantId) {
+    super(message)
+    this.name = 'ErreurOrchestration'
+    this.code = code
+    this.participantId = participantId
+  }
+}
+
+/**
+ * Verifie l'invariant local « un participant, une execution » avant tout appel.
+ */
+export function validerParticipantsUniques(participantsSelectionnes) {
+  const idsVus = new Set()
+
+  for (const { participant } of participantsSelectionnes) {
+    if (idsVus.has(participant.id)) {
+      throw new ErreurOrchestration(
+        CODES_ERREUR_ORCHESTRATION.PARTICIPANT_DUPLIQUE,
+        `orchestrerTour : participant duplique ("${participant.id}").`,
+        participant.id
+      )
+    }
+    idsVus.add(participant.id)
+  }
+}
+
 export function selectionnerParticipants(ciblesResolues, evenement, peutPercevoir) {
   return ciblesResolues.filter(
     ({ participant }) => peutPercevoir(participant, evenement)
@@ -60,6 +91,7 @@ export async function orchestrerTour({
   etatInitial,
   executerParticipant,
 }) {
+  validerParticipantsUniques(participantsSelectionnes)
   const participantsOrdonnes = ordonnerParticipants(participantsSelectionnes)
   const resultatsParticipants = []
 

@@ -521,6 +521,9 @@ L'orchestrateur a une responsabilité unique : **organiser le tour**. Il :
   inventer de nouvelle validation ;
 - conserve exactement l'ordre de `participantIdsCibles`, sans tri, priorité ou
   hasard ;
+- rejette avant toute exécution un `participant.id` présent plusieurs fois avec
+  l'erreur explicite `ErreurOrchestration` et le code stable
+  `participant_duplique` ;
 - pilote exactement un traitement par participant sélectionné ;
 - transmet à chaque traitement le même état initial ;
 - attend la réussite de tous les traitements avant d'appeler

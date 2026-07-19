@@ -1,4 +1,6 @@
 import {
+  CODES_ERREUR_ORCHESTRATION,
+  ErreurOrchestration,
   agregerResultats,
   orchestrerTour,
   ordonnerParticipants,
@@ -51,6 +53,30 @@ describe('RFC-004 — selection et ordre', () => {
 })
 
 describe('RFC-004 — orchestration deterministe', () => {
+  test('rejette les participant.id dupliques avant la premiere execution', async () => {
+    let nombreAppels = 0
+    const executerParticipant = async ({ participant }) => {
+      nombreAppels += 1
+      return fragment(participant.id)
+    }
+
+    const tour = orchestrerTour({
+      participantsSelectionnes: cibles(['a', 'b', 'a']),
+      sollicitation,
+      etatInitial: etatInitial(),
+      executerParticipant,
+    })
+
+    await expect(tour).rejects.toBeInstanceOf(ErreurOrchestration)
+    await expect(tour).rejects.toMatchObject({
+      name: 'ErreurOrchestration',
+      code: CODES_ERREUR_ORCHESTRATION.PARTICIPANT_DUPLIQUE,
+      participantId: 'a',
+    })
+
+    expect(nombreAppels).toBe(0)
+  })
+
   test('execute exactement une fois chaque participant, dans un ordre stable', async () => {
     const appels = []
     const etat = etatInitial()
