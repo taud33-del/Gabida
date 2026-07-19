@@ -42,6 +42,10 @@ import {
   construireTraces,
   construireEtatPrive,
 } from './adaptateur.js'
+import {
+  orchestrerTour,
+  selectionnerParticipants,
+} from './orchestrateur.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -435,48 +439,6 @@ export async function traiterParticipantUnique({
  *
  * @returns {import('../../types/ResultatInteraction.js').ResultatInteraction}
  */
-function agregerResultats({ sollicitation, etatInteraction, resultatsParticipants }) {
-  const actions            = resultatsParticipants.map(r => r.action)
-  const evenementsProduits = resultatsParticipants.map(r => r.evenementProduit)
-  const traces             = resultatsParticipants.flatMap(r => r.traces)
-
-  const etatsPrives = { ...etatInteraction.etatsPrives }
-  for (const r of resultatsParticipants) {
-    etatsPrives[r.participantId] = r.etatPrive
-  }
-
-  // La carte des mémoires n'est recopiée que si au moins un participant a
-  // effectivement mémorisé (peutMemoriser) : sinon la référence initiale est
-  // conservée telle quelle (aucune mémoire modifiée).
-  const misesAJourMemoire = resultatsParticipants.filter(r => r.memoire !== undefined)
-  let memoires = etatInteraction.memoires
-  if (misesAJourMemoire.length > 0) {
-    memoires = { ...etatInteraction.memoires }
-    for (const r of misesAJourMemoire) {
-      memoires[r.participantId] = r.memoire
-    }
-  }
-
-  const nouvelEtat = {
-    ...etatInteraction,
-    etatsPrives,
-    memoires,
-    historique: [
-      ...etatInteraction.historique,
-      sollicitation.evenement,
-      ...evenementsProduits,
-    ],
-  }
-
-  return {
-    sollicitationId: sollicitation.id,
-    actions,
-    evenementsProduits,
-    etat: nouvelEtat,
-    traces,
-  }
-}
-
 // ─── Interface publique ───────────────────────────────────────────────────────
 
 /**
@@ -524,8 +486,10 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
 
   const ciblesResolues = resoudreCiblesAutonomes(sollicitation, etatInteraction)
 
-  const percevants = ciblesResolues.filter(
-    ({ participant }) => peutPercevoirEvenement(participant, sollicitation.evenement)
+  const percevants = selectionnerParticipants(
+    ciblesResolues,
+    sollicitation.evenement,
+    peutPercevoirEvenement
   )
   if (percevants.length === 0) {
     throw new ErreurInteraction(
@@ -541,21 +505,21 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
   // Les résultats sont d'abord tous collectés : l'état agrégé n'est construit
   // qu'après réussite de tous les traitements (atomicité, pas de résultat partiel).
-  const resultatsParticipants = []
-  for (const { participant, fiches } of percevants) {
-    const resultat = await traiterParticipantUnique({
-      participant,
-      fiches,
-      sollicitation,
-      etatInteraction,
-      providerConfig: dependances.providerConfig,
-      genererId,
-      date,
-    })
-    resultatsParticipants.push(resultat)
-  }
-
-  return agregerResultats({ sollicitation, etatInteraction, resultatsParticipants })
+  return orchestrerTour({
+    participantsSelectionnes: percevants,
+    sollicitation,
+    etatInitial: etatInteraction,
+    executerParticipant: ({ participant, fiches }, etatInitial) =>
+      traiterParticipantUnique({
+        participant,
+        fiches,
+        sollicitation,
+        etatInteraction: etatInitial,
+        providerConfig: dependances.providerConfig,
+        genererId,
+        date,
+      }),
+  })
 }
 
 export { ErreurGabida, ErreurValidation }
