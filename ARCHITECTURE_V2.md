@@ -967,3 +967,95 @@ En l'absence de `metadata.relations`, aucun champ relationnel n'est cree et le
 comportement RFC-008, y compris le message narratif, reste strictement inchange.
 RFC-009 n'ajoute volontairement aucune evolution automatique, reciprocite,
 propagation, inference sociale, theorie de l'esprit ou decision narrative.
+
+# RFC-010 - Transmission structuree d'informations
+
+RFC-010 represente explicitement une communication epistemique entre
+participants. Elle distingue quatre objets qui ne sont jamais confondus : le
+dialogue narratif, l'evenement canonique, la transmission structuree et le fait
+epistemique prive produit chez un destinataire. Aucun texte, dialogue, action
+ou resultat LLM n'est analyse pour creer une transmission. Seul
+`evenement.metadata.transmissions.informations` peut en declarer une.
+
+## Contrat et destinataires
+
+`TransmissionInformation` porte un id, un emetteur, une liste ordonnee de
+destinataires, une proposition, un fait source optionnel, un type de resultat,
+une confiance, un statut, l'evenement canonique, une date et des metadata.
+`ResultatTransmissionInformation` journalise pour chaque destinataire la
+perception, l'application, l'id du fait obtenu et une raison d'ignorance.
+
+Tous les participants doivent exister. La liste des destinataires est non vide,
+sans doublon et ne peut contenir l'emetteur. `participantsConcernes`, lorsqu'il
+est present, ajoute un filtre explicite. Plusieurs transmissions conservent
+strictement l'ordre du tableau `informations`, puis l'ordre de leurs
+`destinataireIds`. Les ids sont explicites ou issus de
+`genererIdTransmission`; ils sont uniques dans l'etape et dans les historiques
+prives deja connus.
+
+Une transmission ne s'applique que si RFC-006 rend l'evenement perceptible au
+destinataire. Un destinataire non percevant conserve un resultat ignore, mais
+ne recoit aucun fait. Les destinataires explicites sont evalues meme lorsqu'ils
+ne sont pas demandes comme acteurs du pipeline ; seuls les participants cibles
+continuent d'executer `executeTurn()`.
+
+## Fait source, type et confiance
+
+`faitSourceId` est optionnel. Lorsqu'il existe, il est recherche exclusivement
+dans l'etat epistemique prive de l'emetteur. Le fait doit exister, etre ACTIF et
+porter une proposition structurellement identique. Sa provenance n'est jamais
+recopiee chez le destinataire. Sans fait source, la transmission peut
+representer une affirmation, une supposition ou un mensonge potentiel sans que
+RFC-010 ne qualifie ce cas.
+
+Le resultat par defaut est une CROYANCE. Une CONNAISSANCE exige a la fois
+`typeResultat: connaissance` et l'autorisation explicite
+`metadata.autorisationConnaissance: true`. La confiance explicite est utilisee
+si elle est fournie ; sinon la valeur deterministe est 0.5. Aucune dimension
+relationnelle, verite canonique, emotion ou sortie IA ne modifie cette valeur.
+
+## Reutilisation epistemique et provenance
+
+Le module `core/transmissions` ne cree aucun fait lui-meme. Il pre-valide et
+normalise les transmissions, puis les convertit en propositions internes. Ces
+propositions sont concatenees apres les propositions RFC-007 et transmises lors
+d'un unique appel a `mettreAJourEtatEpistemique()` par participant.
+
+Le moteur epistemique existant reste seul responsable de l'identite des faits,
+de leur creation ou mise a jour, de la confiance, des contradictions, des
+statuts et de la vue active. La provenance directe obtenue est toujours
+`communication`, avec la transmission comme `sourceId`, l'evenement canonique,
+l'emetteur comme `participantSourceId`, la precision de perception, la
+confiance initiale, la date et `metadata.transmissionId`.
+
+## Historique prive, ordre et orchestration
+
+L'etat prive optionnel `transmissions` contient `emises` chez la source et
+`recues` chez chaque destinataire. Il est mis a jour immuablement apres la
+reussite de la couche epistemique et des relations. Aucun historique prive
+n'est transmis a un autre participant, a `etatPartage`, a la FIFO ou a
+l'historique canonique comme objet autonome.
+
+L'ordre effectif est : validation initiale, prevalidation complete RFC-010,
+perception, expirations et revisions RFC-008, propositions directes RFC-007,
+propositions issues des transmissions, relations RFC-009, historique prive,
+construction du contexte et unique `executeTurn()`. La FIFO RFC-005 transporte
+uniquement l'evenement canonique ; ses transmissions sont traitees au depilage,
+sans creer de nouvel evenement. L'etat obtenu a l'etape N reste disponible a
+l'etape N+1.
+
+## Atomicite, compatibilite et limites
+
+Toutes les structures, identifiants, participants, destinataires, confiances,
+types, autorisations et faits sources sont verifies avant toute application.
+Une `ErreurTransmission`, sous-classe d'`ErreurValidation`, annule l'etape :
+aucun fait, aucune relation, aucun historique et aucun resultat partiel n'est
+expose, le provider n'est pas appele et l'etat initial reste intact.
+
+Sans `metadata.transmissions`, aucun champ `transmissions` n'est ajoute et le
+comportement RFC-009 demeure strictement identique. RFC-010 n'ajoute
+volontairement aucune extraction narrative, detection de mensonge, verite
+automatique, persuasion, reputation, confiance envers les sources, calcul
+relationnel, rumeur, propagation virale, contradiction semantique, theorie de
+l'esprit, priorite de parole, resolution de conflit, appel LLM ou integration
+Hadelas.

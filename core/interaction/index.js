@@ -63,6 +63,12 @@ import {
   mettreAJourRelationsParticipant,
   validerRelationsParticipant,
 } from '../relations/index.js'
+import {
+  construirePropositionsTransmises,
+  finaliserTransmissionsInformation,
+  preparerTransmissionsInformation,
+  validerEtatTransmissions,
+} from '../transmissions/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -370,14 +376,35 @@ function evaluerPerceptions({
   genererIdRevision,
   genererIdVersionFait,
   genererIdRelation,
+  genererIdTransmission,
 }) {
   const participantsSelectionnes = []
   const traces = []
 
+  // Toute la structure RFC-010, ses sources et ses identifiants sont valides
+  // avant la premiere application epistemique ou relationnelle.
+  const planTransmissions = preparerTransmissionsInformation({
+    evenementCanonique: evenement,
+    etatInteraction,
+    genererIdTransmission,
+    date,
+  })
+  const idsCibles = new Set(cibles.map(({ participant }) => participant.id))
+  const participantsEvaluation = cibles.map(cible => ({ ...cible, estCible: true }))
+  const idsEvaluation = new Set(idsCibles)
+  for (const transmission of planTransmissions?.transmissions ?? []) {
+    for (const destinataireId of transmission.destinataireIds) {
+      if (idsEvaluation.has(destinataireId)) continue
+      idsEvaluation.add(destinataireId)
+      participantsEvaluation.push({ participant: etatInteraction.participants[destinataireId], estCible: false })
+    }
+  }
+
   // Toutes les perceptions sont calculees avant la premiere execution : une
   // erreur structurelle conserve ainsi l'atomicite totale de l'interaction.
-  const evaluations = cibles.map(({ participant }) => ({
+  const evaluations = participantsEvaluation.map(({ participant, estCible }) => ({
     participant,
+    estCible,
     perception: calculerPerception({
       participant,
       evenement,
@@ -387,25 +414,36 @@ function evaluerPerceptions({
   }))
 
   const etatsPrives = { ...etatInteraction.etatsPrives }
+  const resultatsEpistemiques = new Map()
   for (const evaluation of evaluations) {
     traces.push(...construireTracesPerception(evaluation.perception, genererId, date))
     const etatPrivePrecedent = etatInteraction.etatsPrives[evaluation.participant.id] ?? {}
+    const propositionsTransmises = construirePropositionsTransmises({
+      plan: planTransmissions,
+      participant: evaluation.participant,
+      perception: evaluation.perception,
+    })
+    const evenementEpistemique = evaluation.estCible
+      ? evenement
+      : { ...evenement, metadata: { ...evenement.metadata, epistemique: undefined } }
     const resultatEpistemique = mettreAJourEtatEpistemique({
       participant: evaluation.participant,
       perception: evaluation.perception,
-      evenementCanonique: evenement,
+      evenementCanonique: evenementEpistemique,
       etatPrive: etatPrivePrecedent,
       genererId,
       genererIdEpistemique,
       genererIdRevision,
       genererIdVersionFait,
+      propositionsSupplementaires: propositionsTransmises,
       date,
     })
+    resultatsEpistemiques.set(evaluation.participant.id, resultatEpistemique)
     traces.push(...resultatEpistemique.traces)
     const etatPriveApresEpistemique = resultatEpistemique.etatEpistemique === undefined
       ? etatPrivePrecedent
       : { ...etatPrivePrecedent, epistemique: resultatEpistemique.etatEpistemique }
-    const resultatRelations = mettreAJourRelationsParticipant({
+    const resultatRelations = evaluation.estCible ? mettreAJourRelationsParticipant({
       participant: evaluation.participant,
       perception: evaluation.perception,
       evenementCanonique: evenement,
@@ -414,7 +452,7 @@ function evaluerPerceptions({
       genererId,
       genererIdRelation,
       date,
-    })
+    }) : { relations: etatPriveApresEpistemique.relations, traces: [] }
     traces.push(...resultatRelations.traces)
     if (resultatEpistemique.etatEpistemique !== undefined || resultatRelations.relations !== undefined) {
       etatsPrives[evaluation.participant.id] = {
@@ -422,7 +460,7 @@ function evaluerPerceptions({
         ...(resultatRelations.relations === undefined ? {} : { relations: resultatRelations.relations }),
       }
     }
-    if (!evaluation.perception.perceptible) continue
+    if (!evaluation.estCible || !evaluation.perception.perceptible) continue
     const sansValidation = participantIdsSansValidation.includes(evaluation.participant.id)
     const fiches = sansValidation
       ? undefined
@@ -434,10 +472,19 @@ function evaluerPerceptions({
       evenementPercu: construireEvenementPercu(evenement, evaluation.perception),
     })
   }
+  const resultatTransmissions = finaliserTransmissionsInformation({
+    plan: planTransmissions,
+    evaluations,
+    resultatsEpistemiques,
+    etatsPrives,
+    genererId,
+    date,
+  })
+  traces.push(...resultatTransmissions.traces)
   return {
     participantsSelectionnes,
     traces,
-    etatInteractionMisAJour: { ...etatInteraction, etatsPrives },
+    etatInteractionMisAJour: { ...etatInteraction, etatsPrives: resultatTransmissions.etatsPrives },
   }
 }
 
@@ -607,6 +654,8 @@ export async function traiterParticipantUnique({
  * @param {() => string} [dependances.genererIdRevision]
  * @param {() => string} [dependances.genererIdVersionFait]
  *   Générateurs injectables des révisions et versions RFC-008.
+ * @param {() => string} [dependances.genererIdTransmission]
+ *   Generateur injectable des identifiants de transmission RFC-010.
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
@@ -636,6 +685,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   for (const [participantId, etatPrive] of Object.entries(etatInteraction.etatsPrives)) {
     validerEtatEpistemique(etatPrive?.epistemique, participantId)
     validerRelationsParticipant(etatPrive?.relations, participantId, etatInteraction.participants)
+    validerEtatTransmissions(etatPrive?.transmissions)
   }
 
   const date = typeof dependances.date === 'string'
@@ -656,6 +706,9 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   const genererIdRelation = typeof dependances.genererIdRelation === 'function'
     ? dependances.genererIdRelation
     : undefined
+  const genererIdTransmission = typeof dependances.genererIdTransmission === 'function'
+    ? dependances.genererIdTransmission
+    : undefined
 
   if (optionsPropagation.active) {
     return propagerInteraction({
@@ -675,6 +728,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
           genererIdRevision,
           genererIdVersionFait,
           genererIdRelation,
+          genererIdTransmission,
         }),
       executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
         traiterParticipantUnique({
@@ -702,6 +756,7 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     genererIdRevision,
     genererIdVersionFait,
     genererIdRelation,
+    genererIdTransmission,
   })
 
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
@@ -767,6 +822,18 @@ export {
   validerRelationsParticipant,
   validerStructureRelations,
 } from '../relations/index.js'
+export {
+  CODES_ERREUR_TRANSMISSION,
+  CONFIANCE_TRANSMISSION_PAR_DEFAUT,
+  ErreurTransmission,
+  ETAPES_TRACE_TRANSMISSION,
+  STATUTS_TRANSMISSION_INFORMATION,
+  TYPES_RESULTAT_TRANSMISSION,
+  construirePropositionsTransmises,
+  finaliserTransmissionsInformation,
+  preparerTransmissionsInformation,
+  validerEtatTransmissions,
+} from '../transmissions/index.js'
 export {
   CODES_ERREUR_PROPAGATION,
   ErreurPropagation,
