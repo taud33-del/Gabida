@@ -46,6 +46,10 @@ import {
   orchestrerTour,
   selectionnerParticipants,
 } from './orchestrateur.js'
+import {
+  normaliserOptionsPropagation,
+  propagerInteraction,
+} from './propagation.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -463,6 +467,9 @@ export async function traiterParticipantUnique({
  * @param {string} [dependances.date]
  *   [optionnel] Date ISO 8601 appliquée aux structures produites.
  *   Défaut : la date de l'événement déclencheur.
+ * @param {{active?: boolean, nombreMaximumEvenements?: number, profondeurMaximum?: number}}
+ *   [dependances.propagation] [optionnel] Active explicitement la file FIFO
+ *   RFC-005. Absente ou active=false, le chemin RFC-004 reste strictement utilisé.
  *
  * @returns {Promise<import('../../types/ResultatInteraction.js').ResultatInteraction>}
  *
@@ -502,6 +509,30 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
     ? dependances.date
     : sollicitation.evenement.date
 
+  const optionsPropagation = normaliserOptionsPropagation(dependances.propagation)
+
+  if (optionsPropagation.active) {
+    return propagerInteraction({
+      sollicitation,
+      etatInitial: etatInteraction,
+      ciblesResolues,
+      options: optionsPropagation,
+      peutPercevoir: peutPercevoirEvenement,
+      executerParticipant: ({ participant, fiches }, etatEtape, sollicitationEtape) =>
+        traiterParticipantUnique({
+          participant,
+          fiches,
+          sollicitation: sollicitationEtape,
+          etatInteraction: etatEtape,
+          providerConfig: dependances.providerConfig,
+          genererId,
+          date,
+        }),
+      genererId,
+      date,
+    })
+  }
+
   // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
   // Les résultats sont d'abord tous collectés : l'état agrégé n'est construit
   // qu'après réussite de tous les traitements (atomicité, pas de résultat partiel).
@@ -523,3 +554,12 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
 }
 
 export { ErreurGabida, ErreurValidation }
+export {
+  CODES_ERREUR_PROPAGATION,
+  ErreurPropagation,
+  ETAPES_TRACE_PROPAGATION,
+  OPTIONS_PROPAGATION_PAR_DEFAUT,
+  estEvenementPropagable,
+  normaliserOptionsPropagation,
+  propagerInteraction,
+} from './propagation.js'
