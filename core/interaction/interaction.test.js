@@ -11,7 +11,7 @@
 
 import {
   traiterInteraction,
-  selectionnerParticipantAutonome,
+  resoudreCiblesAutonomes,
   ErreurInteraction,
   ErreurValidation,
   CODES_ERREUR_INTERACTION,
@@ -167,13 +167,15 @@ describe('traiterInteraction — immutabilité et historique', () => {
   })
 })
 
-// ─── selectionnerParticipantAutonome ────────────────────────────────────────────
+// ─── resoudreCiblesAutonomes ────────────────────────────────────────────────────
 
-describe('selectionnerParticipantAutonome', () => {
-  test('retourne l unique agent autonome ciblé', () => {
+describe('resoudreCiblesAutonomes', () => {
+  test('résout les cibles dans l ordre de participantIdsCibles', () => {
     const etatInteraction = fabriqueEtatInteraction()
-    const participant = selectionnerParticipantAutonome(fabriqueSollicitation(), etatInteraction)
-    expect(participant.id).toBe(PARTICIPANT_ID)
+    const resolues = resoudreCiblesAutonomes(fabriqueSollicitation(), etatInteraction)
+    expect(resolues).toHaveLength(1)
+    expect(resolues[0].participant.id).toBe(PARTICIPANT_ID)
+    expect(resolues[0].fiches).toBeDefined()
   })
 })
 
@@ -216,27 +218,22 @@ describe('traiterInteraction — validations et erreurs', () => {
       CODES_ERREUR_INTERACTION.PARTICIPANT_INTROUVABLE
     ))
 
-  test('plusieurs agents autonomes ciblés', () => {
-    const etatInteraction = fabriqueEtatInteraction({
-      participants: {
-        [PARTICIPANT_ID]: fabriqueParticipant(),
-        'agent-2'       : fabriqueParticipant({ id: 'agent-2' }),
-      },
-    })
+  test('identifiant cible dupliqué', () => {
+    const etatInteraction = fabriqueEtatInteraction()
     return attendreCode(
-      fabriqueSollicitation({ participantIdsCibles: [PARTICIPANT_ID, 'agent-2'] }),
+      fabriqueSollicitation({ participantIdsCibles: [PARTICIPANT_ID, PARTICIPANT_ID] }),
       etatInteraction,
-      CODES_ERREUR_INTERACTION.PLUSIEURS_AGENTS_AUTONOMES
+      CODES_ERREUR_INTERACTION.CIBLES_DUPLIQUEES
     )
   })
 
-  test('aucun agent autonome parmi les cibles (participant non autonome)', () => {
+  test('participant ciblé non autonome', () => {
     const externe = fabriqueParticipant({ id: 'ext', type: TYPES_PARTICIPANT.EMETTEUR_EXTERNE })
     const etatInteraction = fabriqueEtatInteraction({ participants: { ext: externe } })
     return attendreCode(
       fabriqueSollicitation({ participantIdsCibles: ['ext'] }),
       etatInteraction,
-      CODES_ERREUR_INTERACTION.AUCUN_AGENT_AUTONOME
+      CODES_ERREUR_INTERACTION.PARTICIPANT_NON_AUTONOME
     )
   })
 
