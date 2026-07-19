@@ -26,6 +26,13 @@
  * @property {import('./PlanificationExecutionParticipant.js').PlanificationExecutionParticipant[]} [planificationsExecution]
  *   Autorisations d execution issues des intentions metier retenues.
  *
+ * @property {import('./IntentionMetier.js').IntentionMetier[]} [intentionsExecutables]
+ * @property {Object[]} [intentionsEcarteesParConflit]
+ * @property {import('./ConflitAction.js').ConflitAction[]} [conflitsDetectes]
+ * @property {import('./PlanificationExecutionParticipant.js').PlanificationExecutionParticipant[]} [planificationsFinales]
+ * @property {string[]} [ordreExecutionFinal]
+ *   Champs exposes uniquement lorsque RFC-012 est activee explicitement.
+ *
  * @property {import('./ActionParticipant.js').ActionParticipant[]} actions
  *   [obligatoire] Actions produites par les participants. Peut être vide.
  *
