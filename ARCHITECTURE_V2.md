@@ -505,3 +505,49 @@ autre, boucles de conversation internes, second passage cognitif, perception
 avancée ou croyances calculées, parallélisation, appel groupé au LLM, narrateur
 automatique, intégration Hadelas, migration de contenus, suppression de la V1.
 L'API V1 (`executeTurn` / `runCycle`) reste disponible et inchangée.
+
+---
+
+## 12. RFC-004 — Orchestrateur déterministe
+
+RFC-004 extrait l'organisation d'un tour dans
+`core/interaction/orchestrateur.js`. L'API publique ne change pas :
+`traiterInteraction()` valide toujours les entrées et `executeTurn()` demeure
+l'unique pipeline cognitif.
+
+L'orchestrateur a une responsabilité unique : **organiser le tour**. Il :
+
+- applique la règle de sélection déjà fournie par `traiterInteraction`, sans
+  inventer de nouvelle validation ;
+- conserve exactement l'ordre de `participantIdsCibles`, sans tri, priorité ou
+  hasard ;
+- pilote exactement un traitement par participant sélectionné ;
+- transmet à chaque traitement le même état initial ;
+- attend la réussite de tous les traitements avant d'appeler
+  `agregerResultats()` ;
+- agrège, dans l'ordre, actions, événements, mémoires, états privés et traces
+  dans un unique `ResultatInteraction` immuable.
+
+```text
+traiterInteraction
+  -> sélection existante
+  -> ordre participantIdsCibles
+  -> orchestrerTour
+       -> executeTurn(participant A, état initial)
+       -> executeTurn(participant B, état initial)
+       -> executeTurn(participant C, état initial)
+  -> agregerResultats
+  -> ResultatInteraction
+```
+
+L'agrégation est une étape structurelle isolée. Elle ne commence qu'après la
+fin de tous les traitements : si l'un échoue, aucun résultat partiel n'est
+retourné et l'état initial reste intact.
+
+### Ce que RFC-004 ne fait volontairement pas
+
+L'orchestrateur ne contient aucune logique métier, décision IA ou analyse
+narrative. Il ne modifie pas le pipeline cognitif et n'ajoute ni réaction en
+chaîne, ni propagation d'événements, ni perception avancée, ni croyances, ni
+second passage cognitif. Ces sujets restent hors périmètre et sont réservés aux
+RFC-005, RFC-006 et RFC-007.
