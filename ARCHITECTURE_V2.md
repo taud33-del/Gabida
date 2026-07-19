@@ -72,8 +72,11 @@ structures V1 n'est effectuée.
 
 `EtatInteraction` distingue explicitement quatre plans, sans les mélanger :
 
-- **État partagé** (`etatPartage`) : le monde commun perçu par tous les
-  participants.
+- **État partagé** (`etatPartage`) : l'état **canonique/objectif** de
+  l'interaction — la réalité de référence, **indépendante de ce que chaque
+  participant perçoit, sait ou croit**. Ce n'est pas « ce que tout le monde
+  perçoit » : un participant peut ignorer, mal percevoir ou croire faux une
+  partie de cet état canonique (ce décalage vivra dans les états privés/mémoires).
 - **États privés** (`etatsPrives`) : indexés par `participantId`, propres à
   chaque participant et non partagés.
 - **Mémoire** (`memoires`) : indexée **par participant** — chaque participant a
@@ -85,7 +88,53 @@ L'`historique` conserve la suite ordonnée des `EvenementInteraction`.
 
 ---
 
-## 6. Cohérence avec l'architecture existante
+## 6. Capacités et statut : possibilités structurelles vs restriction contextuelle
+
+`CapacitesParticipant` et `statut` jouent deux rôles complémentaires et ne
+doivent pas être confondus :
+
+- **`capacites`** décrit les **possibilités structurelles** d'un participant : ce
+  qu'il est, par nature, capable de faire (percevoir, analyser, ressentir,
+  décider, produire une action, mémoriser).
+- **`statut`** applique une **restriction contextuelle** à ces possibilités : il
+  module, à un instant donné, l'usage effectif de capacités déjà présentes.
+
+Règle stricte :
+
+- le statut **ne peut jamais accorder** une capacité absente
+  (un participant sans `peutProduireAction` ne produira jamais d'action, quel que
+  soit son statut) ;
+- le statut **peut temporairement empêcher** l'usage d'une capacité présente
+  (par exemple un participant `PASSIF` conserve `peutProduireAction: true` mais
+  n'en fait pas usage tant qu'il reste passif).
+
+Autrement dit : `capacites` = plafond permanent ; `statut` = restriction
+temporaire sous ce plafond, jamais au-dessus.
+
+---
+
+## 7. Destinataires et visibilité : concerné vs perceptible
+
+Sur `EvenementInteraction` et `ActionParticipant`, `destinataireIds` et
+`visibilite` répondent à deux questions différentes :
+
+- **`destinataireIds`** indique les participants **directement concernés** par
+  l'événement ou l'action (ceux à qui il s'adresse).
+- **`visibilite`** détermine quels participants **peuvent potentiellement le
+  percevoir** (sa portée).
+
+Ces deux notions sont **indépendantes** : **être perceptible ne signifie pas être
+destinataire**. Un événement peut viser un destinataire précis tout en étant
+`PUBLIQUE` (d'autres participants peuvent le percevoir sans en être les
+destinataires) ; inversement, une portée `PRIVEE` ou `RESTREINTE` limite la
+perception à un sous-ensemble, indépendamment de la liste des destinataires.
+
+La logique qui exploitera cette distinction (perception effective) appartient à
+une phase ultérieure ; la Phase 1 se limite à fixer les deux champs.
+
+---
+
+## 8. Cohérence avec l'architecture existante
 
 - Les **constantes** vivent dans `constants/`, les **contrats** dans `types/` ;
   cette séparation est strictement conservée.
@@ -108,7 +157,7 @@ Fichiers ajoutés en Phase 1 :
 
 ---
 
-## 7. Ce que la Phase 1 ne fait PAS
+## 9. Ce que la Phase 1 ne fait PAS
 
 Explicitement, cette phase se limite au modèle de données. Elle **ne** :
 
