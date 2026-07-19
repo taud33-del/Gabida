@@ -211,6 +211,42 @@ describe('RFC-009 - validations', () => {
       .toThrow(expect.objectContaining({ code: CODES_ERREUR_RELATION.RELATION_INVALIDE }))
   })
 
+  test('rejette deux relations importees portant le meme id', () => {
+    const relations = { parParticipantId: {
+      b: relation({ id: 'duplique' }),
+      c: relation({ id: 'duplique', cibleParticipantId: 'c' }),
+    } }
+    expect(() => validerRelationsParticipant(relations, 'a', participants))
+      .toThrow(expect.objectContaining({ code: CODES_ERREUR_RELATION.RELATION_ID_DUPLIQUE }))
+  })
+
+  test('rejette un id explicite deja utilise pour une nouvelle cible', () => {
+    const etatPrive = { relations: { parParticipantId: { b: relation({ id: 'deja-utilise' }) } } }
+    expect(() => executer({
+      misesAJour: [miseAJour({ id: 'deja-utilise', cibleParticipantId: 'c' })],
+      etatPrive,
+    })).toThrow(expect.objectContaining({ code: CODES_ERREUR_RELATION.RELATION_ID_DUPLIQUE }))
+  })
+
+  test('rejette un identifiant genere deja utilise', () => {
+    const etatPrive = { relations: { parParticipantId: { b: relation({ id: 'deja-utilise' }) } } }
+    expect(() => executer({
+      misesAJour: [miseAJour({ cibleParticipantId: 'c' })],
+      etatPrive,
+      idRelation: 'deja-utilise',
+    })).toThrow(expect.objectContaining({ code: CODES_ERREUR_RELATION.RELATION_ID_DUPLIQUE }))
+  })
+
+  test('un rejet pour id duplique conserve integralement l etat initial', () => {
+    const etatPrive = { relations: { parParticipantId: { b: relation({ id: 'stable' }) } } }
+    const avant = structuredClone(etatPrive)
+    expect(() => executer({
+      misesAJour: [miseAJour({ id: 'stable', cibleParticipantId: 'c' })],
+      etatPrive,
+    })).toThrow(ErreurRelation)
+    expect(etatPrive).toEqual(avant)
+  })
+
   test('ne mute jamais l etat initial en cas de succes', () => {
     const initiale = relation()
     const etatPrive = { relations: { parParticipantId: { b: initiale } } }

@@ -14,6 +14,7 @@ export const CODES_ERREUR_RELATION = Object.freeze({
   TRANSITION_RELATION_INTERDITE: 'transition_relation_interdite',
   GENERATEUR_ID_RELATION_ABSENT: 'generateur_id_relation_absent',
   PROVENANCE_RELATION_INVALIDE: 'provenance_relation_invalide',
+  RELATION_ID_DUPLIQUE: 'relation_id_duplique',
 })
 
 export class ErreurRelation extends ErreurValidation {

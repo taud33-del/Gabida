@@ -52,6 +52,7 @@ export function validerRelationsParticipant(relations, participantId, participan
   if (!objet(relations) || !objet(relations.parParticipantId)) {
     echouer(CODES_ERREUR_RELATION.STRUCTURE_RELATIONS_INVALIDE, `structure privee invalide pour "${participantId}".`)
   }
+  const idsRelations = new Set()
   for (const [cibleId, relation] of Object.entries(relations.parParticipantId)) {
     if (!objet(relation) || !texte(relation.id) || relation.participantId !== participantId ||
         relation.cibleParticipantId !== cibleId || !valeursStatut.has(relation.statut) ||
@@ -59,6 +60,8 @@ export function validerRelationsParticipant(relations, participantId, participan
         !texte(relation.dateCreation) || !texte(relation.dateMiseAJour) || !objet(relation.metadata)) {
       echouer(CODES_ERREUR_RELATION.RELATION_INVALIDE, `relation invalide vers "${cibleId}".`)
     }
+    if (idsRelations.has(relation.id)) echouer(CODES_ERREUR_RELATION.RELATION_ID_DUPLIQUE, `identifiant de relation duplique ("${relation.id}").`)
+    idsRelations.add(relation.id)
     if (participantId === cibleId) echouer(CODES_ERREUR_RELATION.RELATION_VERS_SOI_INTERDITE, 'relation vers soi interdite.')
     if (participants && !participants[cibleId]) echouer(CODES_ERREUR_RELATION.CIBLE_RELATION_INTROUVABLE, `cible "${cibleId}" introuvable.`)
     validerDimensions(relation.dimensions)
@@ -129,6 +132,8 @@ export function mettreAJourRelationsParticipant({ participant, perception, evene
   // premiere construction de relation ou de trace.
   const statutsSimules = Object.fromEntries(Object.entries(initiales).map(([cibleId, relation]) => [cibleId, relation.statut]))
   const relationsSimulees = new Set(Object.keys(initiales))
+  const idsSimules = new Set(Object.values(initiales).map(relation => relation.id))
+  const idsPlanifies = new Map()
   for (const miseAJour of structure.misesAJour) {
     const concerne = miseAJour.participantId === participant.id &&
       perception.perceptible &&
@@ -140,7 +145,15 @@ export function mettreAJourRelationsParticipant({ participant, perception, evene
     if (existe) validerTransition(avant, apres)
     else {
       if (apres !== STATUTS_RELATION_PARTICIPANT.ACTIVE) echouer(CODES_ERREUR_RELATION.TRANSITION_RELATION_INTERDITE, 'une nouvelle relation doit etre active.')
-      if (!miseAJour.id && typeof genererIdRelation !== 'function') echouer(CODES_ERREUR_RELATION.GENERATEUR_ID_RELATION_ABSENT, 'genererIdRelation est requis.')
+      let idPlanifie = miseAJour.id
+      if (!idPlanifie) {
+        if (typeof genererIdRelation !== 'function') echouer(CODES_ERREUR_RELATION.GENERATEUR_ID_RELATION_ABSENT, 'genererIdRelation est requis.')
+        idPlanifie = genererIdRelation()
+        if (!texte(idPlanifie)) echouer(CODES_ERREUR_RELATION.GENERATEUR_ID_RELATION_ABSENT, 'genererIdRelation doit retourner une chaine non vide.')
+      }
+      if (idsSimules.has(idPlanifie)) echouer(CODES_ERREUR_RELATION.RELATION_ID_DUPLIQUE, `identifiant de relation duplique ("${idPlanifie}").`)
+      idsSimules.add(idPlanifie)
+      idsPlanifies.set(miseAJour, idPlanifie)
       relationsSimulees.add(miseAJour.cibleParticipantId)
     }
     statutsSimules[miseAJour.cibleParticipantId] = apres
@@ -165,12 +178,7 @@ export function mettreAJourRelationsParticipant({ participant, perception, evene
     if (precedente) validerTransition(precedente.statut, statut)
     else if (statut !== STATUTS_RELATION_PARTICIPANT.ACTIVE) echouer(CODES_ERREUR_RELATION.TRANSITION_RELATION_INTERDITE, 'une nouvelle relation doit etre active.')
 
-    let id = precedente?.id ?? miseAJour.id
-    if (!id) {
-      if (typeof genererIdRelation !== 'function') echouer(CODES_ERREUR_RELATION.GENERATEUR_ID_RELATION_ABSENT, 'genererIdRelation est requis.')
-      id = genererIdRelation()
-      if (!texte(id)) echouer(CODES_ERREUR_RELATION.GENERATEUR_ID_RELATION_ABSENT, 'genererIdRelation doit retourner une chaine non vide.')
-    }
+    const id = precedente?.id ?? idsPlanifies.get(miseAJour)
     const dimensions = { ...(precedente?.dimensions ?? {}) }
     for (const [cle, valeur] of Object.entries(miseAJour.dimensions)) {
       dimensions[cle] = mode === MODES_MISE_A_JOUR_RELATION.AJUSTER

@@ -96,6 +96,30 @@ describe('RFC-009 - integration au tour', () => {
     expect(appels).toHaveLength(0)
   })
 
+  test('un id relationnel duplique empeche tout appel fournisseur et preserve l etat', async () => {
+    const relationExistante = {
+      id: 'relation-existante', participantId: PARTICIPANT_ID, cibleParticipantId: PARTICIPANT_ID_B,
+      dimensions: { confiance: 0.2 }, statut: 'active', provenance: [], evenementSourceIds: [],
+      dateCreation: DATE_ISO, dateMiseAJour: DATE_ISO, metadata: {},
+    }
+    const etat = fabriqueEtatInteractionMulti({
+      etatsPrives: {
+        [PARTICIPANT_ID]: { relations: { parParticipantId: { [PARTICIPANT_ID_B]: relationExistante } } },
+        [PARTICIPANT_ID_B]: {},
+      },
+    })
+    const evenement = evenementRelation([instruction({
+      id: 'relation-existante',
+      cibleParticipantId: 'participant-c',
+    })])
+    etat.participants['participant-c'] = { ...etat.participants[PARTICIPANT_ID_B], id: 'participant-c' }
+    const avantAppel = structuredClone(etat)
+    await expect(traiterInteraction(fabriqueSollicitation({ evenement }), etat, dependances()))
+      .rejects.toMatchObject({ code: CODES_ERREUR_RELATION.RELATION_ID_DUPLIQUE })
+    expect(appels).toHaveLength(0)
+    expect(etat).toEqual(avantAppel)
+  })
+
   test('une erreur relationnelle conserve totalement l etat initial', async () => {
     const etat = fabriqueEtatInteractionMulti()
     const avant = structuredClone(etat)
