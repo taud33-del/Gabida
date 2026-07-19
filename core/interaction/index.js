@@ -1,22 +1,26 @@
 /**
  * core/interaction/index.js
  *
- * Interface publique V2 (Gabida — Phase 2) : exécuter le pipeline cognitif
- * existant pour UN SEUL participant autonome, sans changer le comportement V1.
+ * Interface publique V2 (Gabida — Phase 3) : exécuter le pipeline cognitif
+ * existant pour UN OU PLUSIEURS participants autonomes ciblés dans une même
+ * sollicitation, sans changer le comportement V1.
  *
- * Responsabilité unique : orchestrer un tour d'interaction pour un participant
- * autonome unique en réutilisant le pipeline cognitif canonique de core/ V1.
+ * Responsabilité unique : orchestrer un tour d'interaction en répétant, de façon
+ * séquentielle et déterministe, le traitement individuel d'un participant autonome
+ * (traiterParticipantUnique) puis en agrégeant les résultats.
  *
  * Ce module :
  *   - valide la sollicitation et l'état d'interaction ;
- *   - sélectionne l'unique participant autonome ciblé (règle stricte) ;
- *   - vérifie son type, son statut et ses capacités indispensables ;
- *   - délègue l'adaptation des structures à core/interaction/adaptateur.js ;
- *   - exécute le pipeline V1 canonique (executeTurn) — sans le dupliquer ;
- *   - convertit le résultat en ResultatInteraction (état d'interaction immuable).
+ *   - résout et valide les participants autonomes ciblés (ordre = participantIdsCibles) ;
+ *   - filtre les participants selon une règle de perception minimale ;
+ *   - exécute le pipeline V1 canonique (executeTurn) une fois par participant ;
+ *   - convertit chaque résultat en ActionParticipant attribuée à son auteur ;
+ *   - agrège actions/événements/traces et mises à jour d'état (immuables).
  *
- * Il ne contient AUCUNE logique cognitive et ne crée AUCUN orchestrateur
- * multi-participants : exactement un agent autonome est traité par sollicitation.
+ * Isolation stricte : chaque participant réagit à l'ÉTAT INITIAL de la
+ * sollicitation. Aucun participant ne reçoit la mémoire, l'état privé ou l'action
+ * d'un autre participant. Aucune réaction croisée, aucun ordre narratif, aucun
+ * arbitrage de conflit : ce sont des phases ultérieures.
  *
  * @module core/interaction
  */
@@ -55,22 +59,22 @@ export const TYPE_EVENEMENT_ACTION = 'action_participant'
  * @enum {string}
  */
 export const CODES_ERREUR_INTERACTION = Object.freeze({
-  SOLLICITATION_INVALIDE       : 'sollicitation_invalide',
-  ETAT_INTERACTION_INVALIDE    : 'etat_interaction_invalide',
-  CIBLES_ABSENTES              : 'cibles_absentes',
-  PARTICIPANT_INTROUVABLE      : 'participant_introuvable',
-  AUCUN_AGENT_AUTONOME         : 'aucun_agent_autonome',
-  PLUSIEURS_AGENTS_AUTONOMES   : 'plusieurs_agents_autonomes',
-  PARTICIPANT_NON_AUTONOME     : 'participant_non_autonome',
-  STATUT_INVALIDE              : 'statut_invalide',
-  PROFIL_ABSENT                : 'profil_absent',
-  PROFIL_NON_SUPPORTE          : 'profil_non_supporte',
-  DONNEES_PROFIL_INCOMPLETES   : 'donnees_profil_incompletes',
+  SOLLICITATION_INVALIDE         : 'sollicitation_invalide',
+  ETAT_INTERACTION_INVALIDE      : 'etat_interaction_invalide',
+  CIBLES_ABSENTES                : 'cibles_absentes',
+  CIBLES_DUPLIQUEES              : 'cibles_dupliquees',
+  PARTICIPANT_INTROUVABLE        : 'participant_introuvable',
+  PARTICIPANT_NON_AUTONOME       : 'participant_non_autonome',
+  STATUT_INVALIDE                : 'statut_invalide',
+  PROFIL_ABSENT                  : 'profil_absent',
+  PROFIL_NON_SUPPORTE            : 'profil_non_supporte',
+  DONNEES_PROFIL_INCOMPLETES     : 'donnees_profil_incompletes',
   CAPACITE_INDISPENSABLE_ABSENTE : 'capacite_indispensable_absente',
-  ETAT_PRIVE_INCOHERENT        : 'etat_prive_incoherent',
+  ETAT_PRIVE_INCOHERENT          : 'etat_prive_incoherent',
+  EVENEMENT_NON_PERCEPTIBLE      : 'evenement_non_perceptible',
 })
 
-// ─── Erreur dédiée ─────────────────────────────────────────────────────────────
+// ─── Erreurs dédiées ────────────────────────────────────────────────────────────
 
 /**
  * Précondition non respectée à l'entrée de traiterInteraction.
@@ -86,6 +90,25 @@ export class ErreurInteraction extends ErreurValidation {
     super(message)
     this.name = 'ErreurInteraction'
     this.code = code
+  }
+}
+
+/**
+ * Échec du pipeline cognitif pour un participant donné.
+ * Catégorie « engine/runtime » : n'est PAS une erreur de validation. Préserve la
+ * cause d'origine et identifie le participant concerné (atomicité : aucun résultat
+ * partiel n'est retourné lorsqu'elle est levée).
+ */
+export class ErreurTraitementParticipant extends ErreurGabida {
+  /**
+   * @param {string} participantId
+   * @param {Error} cause
+   */
+  constructor(participantId, cause) {
+    super(`traiterInteraction : echec du pipeline pour le participant "${participantId}" : ${cause.message}`)
+    this.name          = 'ErreurTraitementParticipant'
+    this.participantId = participantId
+    this.cause         = cause
   }
 }
 
@@ -159,74 +182,30 @@ function validerEtatInteraction(etatInteraction) {
 }
 
 /**
- * selectionnerParticipantAutonome(sollicitation, etatInteraction)
- *
- * Applique la règle stricte de Phase 2 : parmi les participants ciblés existants,
- * exactement UN doit être de type AGENT_AUTONOME. Toute autre configuration échoue.
- * Aucune sélection « intelligente » n'est effectuée.
- *
- * @returns {import('../../types/Participant.js').Participant}
- * @throws {ErreurInteraction}
- */
-export function selectionnerParticipantAutonome(sollicitation, etatInteraction) {
-  const cibles = sollicitation.participantIdsCibles
-  if (cibles.length === 0) {
-    throw new ErreurInteraction(
-      CODES_ERREUR_INTERACTION.CIBLES_ABSENTES,
-      'traiterInteraction : aucun participant cible dans la sollicitation.'
-    )
-  }
-
-  const participantsCibles = cibles.map(id => {
-    const participant = etatInteraction.participants[id]
-    if (!participant) {
-      throw new ErreurInteraction(
-        CODES_ERREUR_INTERACTION.PARTICIPANT_INTROUVABLE,
-        `traiterInteraction : participant cible introuvable ("${id}").`
-      )
-    }
-    return participant
-  })
-
-  const autonomes = participantsCibles.filter(p => p.type === TYPES_PARTICIPANT.AGENT_AUTONOME)
-
-  if (autonomes.length === 0) {
-    throw new ErreurInteraction(
-      CODES_ERREUR_INTERACTION.AUCUN_AGENT_AUTONOME,
-      'traiterInteraction : aucun participant autonome parmi les cibles.'
-    )
-  }
-  if (autonomes.length > 1) {
-    throw new ErreurInteraction(
-      CODES_ERREUR_INTERACTION.PLUSIEURS_AGENTS_AUTONOMES,
-      'traiterInteraction : plusieurs participants autonomes cibles (Phase 2 en traite un seul).'
-    )
-  }
-
-  return autonomes[0]
-}
-
-/**
  * validerParticipant(participant, etatInteraction)
  *
  * Vérifie type, statut, profil, capacités indispensables et cohérence de l'état
- * privé/mémoire du participant sélectionné. Retourne les fiches extraites.
+ * privé/mémoire d'un participant ciblé. Retourne les fiches extraites de son profil.
  *
+ * @param {import('../../types/Participant.js').Participant} participant
+ * @param {import('../../types/EtatInteraction.js').EtatInteraction} etatInteraction
  * @returns {object} fiches V1 extraites du profil
  * @throws {ErreurInteraction}
  */
 export function validerParticipant(participant, etatInteraction) {
+  const id = participant.id
+
   if (participant.type !== TYPES_PARTICIPANT.AGENT_AUTONOME) {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.PARTICIPANT_NON_AUTONOME,
-      'traiterInteraction : le participant sélectionné n est pas autonome.'
+      `traiterInteraction : le participant "${id}" n est pas autonome (type "${participant.type}").`
     )
   }
 
   if (participant.statut !== STATUTS_PARTICIPANT.ACTIF) {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.STATUT_INVALIDE,
-      `traiterInteraction : une action est demandee mais le statut est "${participant.statut}" (attendu : ACTIF).`
+      `traiterInteraction : une action est demandee au participant "${id}" mais son statut est "${participant.statut}" (attendu : ACTIF).`
     )
   }
 
@@ -234,7 +213,7 @@ export function validerParticipant(participant, etatInteraction) {
   if (!capacites || typeof capacites !== 'object') {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.CAPACITE_INDISPENSABLE_ABSENTE,
-      'traiterInteraction : capacites du participant absentes.'
+      `traiterInteraction : capacites du participant "${id}" absentes.`
     )
   }
   const indispensables = ['peutAnalyser', 'peutDecider', 'peutProduireAction']
@@ -242,7 +221,7 @@ export function validerParticipant(participant, etatInteraction) {
     if (capacites[capacite] !== true) {
       throw new ErreurInteraction(
         CODES_ERREUR_INTERACTION.CAPACITE_INDISPENSABLE_ABSENTE,
-        `traiterInteraction : capacite indispensable manquante ("${capacite}").`
+        `traiterInteraction : capacite indispensable manquante pour "${id}" ("${capacite}").`
       )
     }
   }
@@ -250,13 +229,13 @@ export function validerParticipant(participant, etatInteraction) {
   if (!participant.profil) {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.PROFIL_ABSENT,
-      'traiterInteraction : profil du participant absent.'
+      `traiterInteraction : profil du participant "${id}" absent.`
     )
   }
   if (participant.profil.type !== TYPES_PROFIL_PARTICIPANT.PERSONNAGE) {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.PROFIL_NON_SUPPORTE,
-      `traiterInteraction : type de profil "${participant.profil.type}" non pris en charge en Phase 2 (attendu : PERSONNAGE).`
+      `traiterInteraction : type de profil "${participant.profil.type}" non pris en charge pour "${id}" (attendu : PERSONNAGE).`
     )
   }
 
@@ -264,49 +243,149 @@ export function validerParticipant(participant, etatInteraction) {
   if (!fichesCompletes(fiches)) {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.DONNEES_PROFIL_INCOMPLETES,
-      'traiterInteraction : profil.donnees.fiches incomplet (5 fiches attendues).'
+      `traiterInteraction : profil.donnees.fiches incomplet pour "${id}" (5 fiches attendues).`
     )
   }
 
-  const etatPrive = etatInteraction.etatsPrives[participant.id]
+  const etatPrive = etatInteraction.etatsPrives[id]
   if (etatPrive !== undefined && (etatPrive === null || typeof etatPrive !== 'object')) {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.ETAT_PRIVE_INCOHERENT,
-      'traiterInteraction : etat prive du participant incoherent.'
+      `traiterInteraction : etat prive du participant "${id}" incoherent.`
     )
   }
-  const memoire = etatInteraction.memoires[participant.id]
+  const memoire = etatInteraction.memoires[id]
   if (memoire !== undefined && (!memoire || !Array.isArray(memoire.souvenirs))) {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.ETAT_PRIVE_INCOHERENT,
-      'traiterInteraction : memoire du participant incoherente (souvenirs manquants).'
+      `traiterInteraction : memoire du participant "${id}" incoherente (souvenirs manquants).`
     )
   }
 
   return fiches
 }
 
-// ─── Conversion de sortie ─────────────────────────────────────────────────────
+/**
+ * resoudreCiblesAutonomes(sollicitation, etatInteraction)
+ *
+ * Résout les participants ciblés STRICTEMENT dans l'ordre de participantIdsCibles.
+ * Rejette une liste vide et les identifiants dupliqués (pour ne pas masquer une
+ * entrée invalide). Valide chaque participant (existence + validerParticipant).
+ *
+ * @returns {{ participant: import('../../types/Participant.js').Participant, fiches: object }[]}
+ * @throws {ErreurInteraction}
+ */
+export function resoudreCiblesAutonomes(sollicitation, etatInteraction) {
+  const cibles = sollicitation.participantIdsCibles
+
+  if (cibles.length === 0) {
+    throw new ErreurInteraction(
+      CODES_ERREUR_INTERACTION.CIBLES_ABSENTES,
+      'traiterInteraction : aucun participant cible dans la sollicitation.'
+    )
+  }
+
+  const vus = new Set()
+  for (const id of cibles) {
+    if (vus.has(id)) {
+      throw new ErreurInteraction(
+        CODES_ERREUR_INTERACTION.CIBLES_DUPLIQUEES,
+        `traiterInteraction : identifiant cible duplique ("${id}").`
+      )
+    }
+    vus.add(id)
+  }
+
+  return cibles.map(id => {
+    const participant = etatInteraction.participants[id]
+    if (!participant) {
+      throw new ErreurInteraction(
+        CODES_ERREUR_INTERACTION.PARTICIPANT_INTROUVABLE,
+        `traiterInteraction : participant cible introuvable ("${id}").`
+      )
+    }
+    const fiches = validerParticipant(participant, etatInteraction)
+    return { participant, fiches }
+  })
+}
+
+// ─── Perception minimale ─────────────────────────────────────────────────────
 
 /**
- * construireResultatInteraction(params)
+ * peutPercevoirEvenement(participant, evenement)
  *
- * Assemble le ResultatInteraction et le nouvel EtatInteraction immuable à partir
- * du TurnResult V1. Aucune donnée d'un autre participant n'est touchée.
+ * Règle de perception minimale et déterministe (aucun moteur de perception) :
+ *   - PUBLIQUE   : perceptible par tout participant ciblé ;
+ *   - PRIVEE     : perceptible uniquement par les participants de destinataireIds ;
+ *   - RESTREINTE : règle minimale — identique à PRIVEE (limitée à destinataireIds)
+ *                  tant qu'aucun ensemble de perception explicite n'existe ;
+ *   - SYSTEME    : non transmise aux agents incarnés (AGENT_AUTONOME) ;
+ *   - absente    : traitée comme PUBLIQUE (compatibilité).
  *
- * @returns {import('../../types/ResultatInteraction.js').ResultatInteraction}
+ * Rappel des contrats : destinataireIds = participants directement concernés ;
+ * visibilite = qui peut potentiellement percevoir. Percevoir n'implique pas être
+ * destinataire.
+ *
+ * @param {import('../../types/Participant.js').Participant} participant
+ * @param {import('../../types/EvenementInteraction.js').EvenementInteraction} evenement
+ * @returns {boolean}
  */
-function construireResultatInteraction({
+export function peutPercevoirEvenement(participant, evenement) {
+  const destinataireIds = Array.isArray(evenement.destinataireIds) ? evenement.destinataireIds : []
+  switch (evenement.visibilite) {
+    case VISIBILITES_EVENEMENT.PRIVEE:
+    case VISIBILITES_EVENEMENT.RESTREINTE:
+      return destinataireIds.includes(participant.id)
+    case VISIBILITES_EVENEMENT.SYSTEME:
+      return false
+    case VISIBILITES_EVENEMENT.PUBLIQUE:
+    default:
+      return true
+  }
+}
+
+// ─── Traitement individuel (réutilisé pour chaque participant) ────────────────
+
+/**
+ * traiterParticipantUnique(params)
+ *
+ * Encapsule le traitement cognitif d'UN participant autonome : construit son
+ * contexte V1 isolé à partir de l'ÉTAT INITIAL, exécute le pipeline V1 canonique
+ * (executeTurn — jamais dupliqué), puis convertit le résultat V1 en fragments V2.
+ * Ne mute jamais etatInteraction et ne lit jamais les données d'un autre participant.
+ *
+ * @returns {Promise<{
+ *   participantId: string,
+ *   action: import('../../types/ActionParticipant.js').ActionParticipant,
+ *   evenementProduit: import('../../types/EvenementInteraction.js').EvenementInteraction,
+ *   traces: import('../../types/TraceInteraction.js').TraceInteraction[],
+ *   etatPrive: object,
+ *   memoire: (object|undefined),
+ * }>}
+ * @throws {ErreurTraitementParticipant} si le pipeline échoue pour ce participant
+ */
+export async function traiterParticipantUnique({
+  participant,
+  fiches,
   sollicitation,
   etatInteraction,
-  participant,
-  turnResult,
+  providerConfig,
   genererId,
   date,
-  peutMemoriser,
 }) {
-  const participantId  = participant.id
+  const participantId = participant.id
   const evenementEntree = sollicitation.evenement
+
+  const etatV1        = construireEtatV1(participantId, etatInteraction)
+  const playerMessage = construirePlayerMessage(evenementEntree, etatV1)
+
+  let turnResult
+  try {
+    turnResult = await executeTurn(playerMessage, providerConfig, fiches, etatV1)
+  } catch (cause) {
+    throw new ErreurTraitementParticipant(participantId, cause)
+  }
+
   const destinataireIds = evenementEntree.emetteurId ? [evenementEntree.emetteurId] : []
   const visibilite = evenementEntree.visibilite ?? VISIBILITES_EVENEMENT.PUBLIQUE
 
@@ -326,34 +405,72 @@ function construireResultatInteraction({
     date,
   })
 
-  const evenementsProduits = [evenementProduit]
-
   const traces = construireTraces({ participantId, genererId, date, turnResult })
 
   const etatPrivePrecedent = etatInteraction.etatsPrives[participantId] ?? {}
-  const nouvelEtatPrive = construireEtatPrive(etatPrivePrecedent, turnResult.etatMisAJour)
+  const etatPrive = construireEtatPrive(etatPrivePrecedent, turnResult.etatMisAJour)
 
-  const nouvellesMemoires = peutMemoriser
-    ? { ...etatInteraction.memoires, [participantId]: turnResult.etatMisAJour.memoireVecue }
-    : etatInteraction.memoires
+  const peutMemoriser = participant.capacites.peutMemoriser === true
+
+  return {
+    participantId,
+    action,
+    evenementProduit,
+    traces,
+    etatPrive,
+    memoire: peutMemoriser ? turnResult.etatMisAJour.memoireVecue : undefined,
+  }
+}
+
+// ─── Agrégation ────────────────────────────────────────────────────────────────
+
+/**
+ * agregerResultats({ sollicitation, etatInteraction, resultatsParticipants })
+ *
+ * Agrège de façon déterministe les fragments produits par chaque participant,
+ * dans l'ordre de traitement, et construit le nouvel EtatInteraction immuable.
+ * L'événement d'entrée est ajouté UNE SEULE fois à l'historique, suivi des
+ * événements produits (ordre des participants). L'état initial n'est jamais muté ;
+ * seules les entrées des participants traités sont remplacées.
+ *
+ * @returns {import('../../types/ResultatInteraction.js').ResultatInteraction}
+ */
+function agregerResultats({ sollicitation, etatInteraction, resultatsParticipants }) {
+  const actions            = resultatsParticipants.map(r => r.action)
+  const evenementsProduits = resultatsParticipants.map(r => r.evenementProduit)
+  const traces             = resultatsParticipants.flatMap(r => r.traces)
+
+  const etatsPrives = { ...etatInteraction.etatsPrives }
+  for (const r of resultatsParticipants) {
+    etatsPrives[r.participantId] = r.etatPrive
+  }
+
+  // La carte des mémoires n'est recopiée que si au moins un participant a
+  // effectivement mémorisé (peutMemoriser) : sinon la référence initiale est
+  // conservée telle quelle (aucune mémoire modifiée).
+  const misesAJourMemoire = resultatsParticipants.filter(r => r.memoire !== undefined)
+  let memoires = etatInteraction.memoires
+  if (misesAJourMemoire.length > 0) {
+    memoires = { ...etatInteraction.memoires }
+    for (const r of misesAJourMemoire) {
+      memoires[r.participantId] = r.memoire
+    }
+  }
 
   const nouvelEtat = {
     ...etatInteraction,
-    etatsPrives: {
-      ...etatInteraction.etatsPrives,
-      [participantId]: nouvelEtatPrive,
-    },
-    memoires: nouvellesMemoires,
+    etatsPrives,
+    memoires,
     historique: [
       ...etatInteraction.historique,
-      evenementEntree,
+      sollicitation.evenement,
       ...evenementsProduits,
     ],
   }
 
   return {
     sollicitationId: sollicitation.id,
-    actions: [action],
+    actions,
     evenementsProduits,
     etat: nouvelEtat,
     traces,
@@ -365,8 +482,13 @@ function construireResultatInteraction({
 /**
  * traiterInteraction(sollicitation, etatInteraction, dependances)
  *
- * Point d'entrée public V2 (Phase 2). Traite EXACTEMENT un participant autonome
- * en réutilisant le pipeline cognitif V1 canonique (executeTurn).
+ * Point d'entrée public V2 (Phase 3). Traite un ou plusieurs participants
+ * autonomes ciblés, chacun exécutant INDÉPENDAMMENT le pipeline cognitif V1
+ * canonique (executeTurn), puis agrège les résultats en un seul ResultatInteraction.
+ *
+ * Traitement séquentiel et déterministe dans l'ordre de participantIdsCibles.
+ * Atomicité : si le pipeline d'un participant échoue, l'appel échoue entièrement
+ * (aucun état partiellement mis à jour n'est retourné).
  *
  * @param {import('../../types/Sollicitation.js').Sollicitation} sollicitation
  * @param {import('../../types/EtatInteraction.js').EtatInteraction} etatInteraction
@@ -383,7 +505,7 @@ function construireResultatInteraction({
  * @returns {Promise<import('../../types/ResultatInteraction.js').ResultatInteraction>}
  *
  * @throws {ErreurInteraction} précondition non respectée (voir CODES_ERREUR_INTERACTION)
- * @throws {ErreurValidation|ErreurPipeline|ErreurProvider} erreurs du pipeline V1 (propagées telles quelles)
+ * @throws {ErreurTraitementParticipant} échec du pipeline pour un participant (atomique)
  */
 export async function traiterInteraction(sollicitation, etatInteraction, dependances) {
   if (!dependances || typeof dependances !== 'object' || !dependances.providerConfig) {
@@ -400,32 +522,40 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
   validerSollicitation(sollicitation)
   validerEtatInteraction(etatInteraction)
 
-  const participant = selectionnerParticipantAutonome(sollicitation, etatInteraction)
-  const fiches      = validerParticipant(participant, etatInteraction)
+  const ciblesResolues = resoudreCiblesAutonomes(sollicitation, etatInteraction)
+
+  const percevants = ciblesResolues.filter(
+    ({ participant }) => peutPercevoirEvenement(participant, sollicitation.evenement)
+  )
+  if (percevants.length === 0) {
+    throw new ErreurInteraction(
+      CODES_ERREUR_INTERACTION.EVENEMENT_NON_PERCEPTIBLE,
+      'traiterInteraction : evenement non perceptible par aucun participant cible.'
+    )
+  }
 
   const date = typeof dependances.date === 'string'
     ? dependances.date
     : sollicitation.evenement.date
 
-  const etatV1        = construireEtatV1(participant.id, etatInteraction)
-  const playerMessage = construirePlayerMessage(sollicitation.evenement, etatV1)
+  // Traitement séquentiel contre l'ÉTAT INITIAL (aucune réaction croisée).
+  // Les résultats sont d'abord tous collectés : l'état agrégé n'est construit
+  // qu'après réussite de tous les traitements (atomicité, pas de résultat partiel).
+  const resultatsParticipants = []
+  for (const { participant, fiches } of percevants) {
+    const resultat = await traiterParticipantUnique({
+      participant,
+      fiches,
+      sollicitation,
+      etatInteraction,
+      providerConfig: dependances.providerConfig,
+      genererId,
+      date,
+    })
+    resultatsParticipants.push(resultat)
+  }
 
-  const turnResult = await executeTurn(
-    playerMessage,
-    dependances.providerConfig,
-    fiches,
-    etatV1
-  )
-
-  return construireResultatInteraction({
-    sollicitation,
-    etatInteraction,
-    participant,
-    turnResult,
-    genererId,
-    date,
-    peutMemoriser: participant.capacites.peutMemoriser === true,
-  })
+  return agregerResultats({ sollicitation, etatInteraction, resultatsParticipants })
 }
 
 export { ErreurGabida, ErreurValidation }

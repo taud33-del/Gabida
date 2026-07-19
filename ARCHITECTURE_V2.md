@@ -1,10 +1,13 @@
 # Architecture Gabida V2 — Modèle multi-participants
 
-> **Statut : Phase 2 — pipeline sur participant unique.**
-> La Phase 1 a introduit les *contrats de données* (§1–9). La Phase 2 (§10)
-> exécute le pipeline cognitif V1 existant pour **un seul** participant autonome,
-> sans le dupliquer et sans changer le comportement. Aucun orchestrateur
-> multi-participants ni moteur de perception n'est ajouté à ce stade.
+> **Statut : Phase 3 — exécution cognitive multi-participants.**
+> La Phase 1 a introduit les *contrats de données* (§1–9). La Phase 2 (§10) a
+> exécuté le pipeline cognitif V1 pour **un seul** participant autonome. La
+> Phase 3 (§11) répète ce même pipeline, de façon **séquentielle et
+> déterministe**, pour **plusieurs** participants autonomes ciblés, avec des
+> mémoires et états privés isolés. Le pipeline n'est jamais dupliqué. Aucune
+> réaction croisée, aucun ordre narratif intelligent ni arbitrage de conflit
+> n'est ajouté à ce stade (pas encore d'orchestrateur narratif).
 
 ---
 
@@ -357,3 +360,148 @@ migration, aucune suppression de la V1. Elle prouve uniquement que **le pipeline
 cognitif actuel peut fonctionner avec un `Participant` autonome unique comme
 unité technique, sans changement de comportement** (démontré par le test de
 parité V1/V2).
+
+---
+
+## 11. Phase 3 — Exécution cognitive multi-participants
+
+La Phase 3 fait évoluer `traiterInteraction` pour traiter **plusieurs**
+participants autonomes ciblés dans une même sollicitation. Chaque participant
+exécute **indépendamment** le pipeline cognitif V1 (le même que la Phase 2), puis
+les résultats sont agrégés en un seul `ResultatInteraction`.
+
+```text
+evenement
+   ↓
+participant A → executeTurn → action A + mémoire A
+participant B → executeTurn → action B + mémoire B
+participant C → executeTurn → action C + mémoire C
+   ↓  (chacun réagit à l'ÉTAT INITIAL)
+agrégation déterministe
+   ↓
+ResultatInteraction { actions[], evenementsProduits[], etat, traces[] }
+```
+
+### 11.1 Une seule fonction individuelle, réutilisée
+
+Le traitement d'un participant est encapsulé dans `traiterParticipantUnique()`
+(exportée). `traiterInteraction()` n'orchestre que la **répétition déterministe** :
+
+```text
+pour chaque participant percevant, dans l'ordre de participantIdsCibles :
+    traiterParticipantUnique(...)   // construit le contexte V1, appelle executeTurn, convertit
+puis :
+    agregerResultats(...)
+```
+
+Le pipeline cognitif V1 (`executeTurn`) n'est **jamais dupliqué** et il n'existe
+pas de variante `pipelineSolo`/`pipelineMulti`. Une seule cible se comporte
+exactement comme en Phase 2 (parité conservée).
+
+### 11.2 Sélection et validation des cibles
+
+La sélection se fonde **uniquement** sur `sollicitation.participantIdsCibles`,
+traité **dans l'ordre** (déterminisme). `resoudreCiblesAutonomes()` :
+
+- rejette une liste vide → `CIBLES_ABSENTES` ;
+- **rejette** les identifiants dupliqués → `CIBLES_DUPLIQUEES` (le refus est
+  préféré à la déduplication silencieuse, pour ne pas masquer une entrée invalide) ;
+- exige que chaque identifiant existe → sinon `PARTICIPANT_INTROUVABLE` ;
+- valide **chaque** participant (`validerParticipant`) : type `AGENT_AUTONOME`
+  (`PARTICIPANT_NON_AUTONOME`), statut `ACTIF` (`STATUT_INVALIDE`), profil
+  `PERSONNAGE` (`PROFIL_ABSENT` / `PROFIL_NON_SUPPORTE`), 5 fiches
+  (`DONNEES_PROFIL_INCOMPLETES`), capacités indispensables (`peutAnalyser`,
+  `peutDecider`, `peutProduireAction` → `CAPACITE_INDISPENSABLE_ABSENTE`), et
+  cohérence de l'état privé/mémoire (`ETAT_PRIVE_INCOHERENT`).
+
+Aucun participant n'est ajouté automatiquement hors de `participantIdsCibles`, et
+aucune sélection « intelligente » n'est effectuée.
+
+### 11.3 Perception minimale (déterministe)
+
+`peutPercevoirEvenement(participant, evenement)` filtre, parmi les cibles
+validées, ceux qui traitent réellement l'événement (règle minimale, **pas** un
+moteur de perception) :
+
+| `visibilite` | Perçu par |
+|---|---|
+| `PUBLIQUE` (ou absente) | tout participant ciblé |
+| `PRIVEE` | uniquement les participants de `destinataireIds` |
+| `RESTREINTE` | règle minimale : **identique à `PRIVEE`** (limité à `destinataireIds`) tant qu'aucun ensemble de perception explicite n'existe |
+| `SYSTEME` | aucun agent incarné (non transmis aux `AGENT_AUTONOME`) |
+
+Rappel des contrats : `destinataireIds` = participants directement concernés ;
+`visibilite` = qui peut potentiellement percevoir. **Percevoir n'implique pas
+être destinataire** (un événement `PUBLIQUE` est perçu par une cible même
+non-destinataire). Si **aucune** cible ne peut percevoir l'événement →
+`EVENEMENT_NON_PERCEPTIBLE`.
+
+### 11.4 Isolation cognitive stricte
+
+Chaque participant reçoit **uniquement** son propre contexte, reconstruit à
+partir de l'**état initial** de la sollicitation :
+
+- son profil (`participant.profil.donnees.fiches`) ;
+- son état privé (`etatsPrives[participantId]`) ;
+- sa mémoire (`memoires[participantId]`) ;
+- le même événement d'entrée (s'il lui est perceptible) ;
+- une vue en lecture seule de l'état canonique (`etatPartage.meta`).
+
+Un participant ne reçoit **jamais** la mémoire, l'état privé, le résultat cognitif
+ni l'action d'un autre participant. **Tous réagissent à l'état initial**, non à un
+état progressivement modifié par les participants précédents :
+
+```text
+✗  A modifie l'état → B analyse l'état modifié par A
+✓  etatInitial ├── contexte A
+              ├── contexte B      (puis agrégation des mises à jour à la fin)
+              └── contexte C
+```
+
+Les réactions croisées appartiennent à une phase ultérieure.
+
+### 11.5 Agrégation déterministe et immuable
+
+`agregerResultats()` construit un nouvel `EtatInteraction` **sans jamais muter**
+l'état initial :
+
+- `memoires[participantId]` ← nouvelle mémoire du participant (uniquement si
+  `peutMemoriser`) ; les autres mémoires restent inchangées ;
+- `etatsPrives[participantId]` ← nouvel état privé du participant ; les autres
+  restent inchangés ;
+- `etatPartage`, `participants`, `relations` restent inchangés ;
+- l'historique est enrichi de manière déterministe : `[...historique,
+  evenementEntree, ...evenementsProduits]` — l'événement d'entrée est ajouté
+  **une seule fois**, suivi des événements produits **dans l'ordre des cibles**.
+
+Les tableaux `actions`, `evenementsProduits` et `traces` respectent l'ordre de
+`participantIdsCibles`. Aucune perte de mise à jour lors de l'agrégation de
+plusieurs mémoires. Chaque `ActionParticipant` porte son propre `id`, son
+`participantId`, son type, son contenu, ses destinataires et sa visibilité :
+**aucune action anonyme**. Un silence reste attribué à son participant
+(`TYPES_ACTION_PARTICIPANT.SILENCE`). Identifiants et dates restent injectables
+(`dependances.genererId` / `dependances.date`) pour un déterminisme total.
+
+### 11.6 Atomicité (pas de résultat partiel)
+
+Le traitement est **séquentiel** (déterminisme, maîtrise des appels au provider,
+lisibilité des traces). Les fragments de tous les participants sont d'abord
+collectés ; l'état agrégé n'est construit **qu'après** la réussite de **tous** les
+traitements. Si le pipeline d'un participant échoue :
+
+- `traiterInteraction` échoue **entièrement** ;
+- aucun état partiellement mis à jour n'est retourné ;
+- l'erreur est enveloppée dans `ErreurTraitementParticipant` (sous-classe
+  d'`ErreurGabida`, **pas** une erreur de validation), qui précise le
+  `participantId` concerné et **préserve la cause d'origine** (`error.cause`).
+
+### 11.7 Ce que la Phase 3 ne fait pas encore
+
+Gabida sait désormais produire **plusieurs décisions indépendantes**, mais ne
+possède **pas encore** son orchestrateur narratif. Ne sont pas implémentés :
+sélection intelligente des participants, ordre de parole / priorité entre
+personnages, résolution de conflits, réaction d'un personnage à la réponse d'un
+autre, boucles de conversation internes, second passage cognitif, perception
+avancée ou croyances calculées, parallélisation, appel groupé au LLM, narrateur
+automatique, intégration Hadelas, migration de contenus, suppression de la V1.
+L'API V1 (`executeTurn` / `runCycle`) reste disponible et inchangée.
