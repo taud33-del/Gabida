@@ -23,6 +23,7 @@ import {
   fabriqueSollicitation,
 } from '../interaction/fixtures.js'
 import { traiterInteraction } from '../interaction/index.js'
+import { construireEtatV1, construirePlayerMessage } from '../interaction/adaptateur.js'
 
 const perception = (overrides = {}) => ({
   participantId: PARTICIPANT_ID,
@@ -162,6 +163,14 @@ describe('RFC-007 - mise a jour, contradiction et remplacement', () => {
 })
 
 describe('RFC-007 - validations et integration', () => {
+  test('sans metadata epistemique le message transmis au pipeline reste inchange', () => {
+    const etatInteraction = fabriqueEtatInteraction()
+    const etatV1 = construireEtatV1(PARTICIPANT_ID, etatInteraction)
+    const evenement = fabriqueEvenement({ contenu: { dialogue: 'hors contrat', action: 'hors contrat' } })
+
+    expect(construirePlayerMessage(evenement, etatV1).texte).toBeUndefined()
+  })
+
   test.each([-0.1, 1.1, 'forte'])('rejette la confiance invalide %s', confiance => {
     expect(() => executer({ propositions: [{ proposition: 'x', confiance }] })).toThrow(ErreurEpistemique)
   })
@@ -202,9 +211,9 @@ describe('RFC-007 - validations et integration', () => {
     expect(resultat.etat.historique.every(item => item.type !== TYPES_FAIT_EPISTEMIQUE.CROYANCE)).toBe(true)
   })
 
-  test('propagation rend l etat epistemique de N disponible a N+1 sans faits dans la FIFO', async () => {
+  test('propagation conserve l etat epistemique sans faits dans la FIFO', async () => {
     const evenement = evenementAvec([{ id: 'initial', proposition: 'observe' }])
-    const resultat = await traiterInteraction(fabriqueSollicitation({ evenement, participantIdsCibles: [PARTICIPANT_ID, PARTICIPANT_ID_B] }), fabriqueEtatInteractionMulti(), { ...deps(), propagation: { active: true, profondeurMaximum: 1, nombreMaximumEvenements: 2 } })
+    const resultat = await traiterInteraction(fabriqueSollicitation({ evenement, participantIdsCibles: [PARTICIPANT_ID, PARTICIPANT_ID_B] }), fabriqueEtatInteractionMulti(), { ...deps(), propagation: { active: true, profondeurMaximum: 0, nombreMaximumEvenements: 2 } })
     expect(resultat.etat.etatsPrives[PARTICIPANT_ID].epistemique.croyances.some(f => f.id === 'initial')).toBe(true)
     expect(resultat.etat.historique.every(item => Object.hasOwn(item, 'visibilite'))).toBe(true)
   })
