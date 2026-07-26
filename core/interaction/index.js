@@ -157,7 +157,7 @@ export class ErreurTraitementParticipant extends ErreurGabida {
  * @param {import('../../types/Sollicitation.js').Sollicitation} sollicitation
  * @throws {ErreurInteraction}
  */
-function validerSollicitation(sollicitation) {
+export function validerSollicitation(sollicitation) {
   if (!sollicitation || typeof sollicitation !== 'object') {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.SOLLICITATION_INVALIDE,
@@ -189,7 +189,7 @@ function validerSollicitation(sollicitation) {
  * @param {import('../../types/EtatInteraction.js').EtatInteraction} etatInteraction
  * @throws {ErreurInteraction}
  */
-function validerEtatInteraction(etatInteraction) {
+export function validerEtatInteraction(etatInteraction) {
   if (!etatInteraction || typeof etatInteraction !== 'object') {
     throw new ErreurInteraction(
       CODES_ERREUR_INTERACTION.ETAT_INTERACTION_INVALIDE,
