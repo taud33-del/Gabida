@@ -68,7 +68,14 @@ export function preparerPlanificationsExecution({
     }
   }
 
-  const intentions = producteurIntentionsMetier({ participantsSelectionnes, evenement })
+  const intentions = producteurIntentionsMetier({ participantsSelectionnes, evenement }).map(intention => ({
+    ...intention,
+    metadata: {
+      ...intention.metadata,
+      ...(evenement.sceneId === undefined ? {} : { sceneId: evenement.sceneId }),
+      ...(evenement.sousSceneId === undefined ? {} : { sousSceneId: evenement.sousSceneId }),
+    },
+  }))
   const arbitrage = arbitrerIntentionsMetier(intentions)
   const cibles = new Map(participantsSelectionnes.map(cible => [cible.participant.id, cible]))
   const executionsPlanifiees = []

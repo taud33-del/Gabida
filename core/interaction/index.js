@@ -74,8 +74,12 @@ import {
   CODES_ERREUR_RESOLUTION_CONFLIT,
   ErreurResolutionConflit,
   normaliserConfigurationResolutionConflits,
-  resoudreConflitsActions,
+  resoudreConflitsActionsParScene,
 } from '../resolution-conflits/index.js'
+import {
+  resoudreDestinatairesScene,
+  validerEtatScenes,
+} from '../scenes/index.js'
 
 // ─── Constantes locales ───────────────────────────────────────────────────────
 
@@ -389,6 +393,15 @@ function evaluerPerceptions({
 }) {
   const participantsSelectionnes = []
   const traces = []
+  const resultatResolutionScene = resoudreDestinatairesScene({
+    evenement,
+    etatInteraction,
+    participantIdsCibles: Object.keys(etatInteraction.participants),
+  })
+  const idsEligiblesScene = new Set(resultatResolutionScene.participantIdsEligibles)
+  const ciblesStructurelles = resultatResolutionScene.active
+    ? cibles.filter(({ participant }) => idsEligiblesScene.has(participant.id))
+    : cibles
 
   // Toute la structure RFC-010, ses sources et ses identifiants sont valides
   // avant la premiere application epistemique ou relationnelle.
@@ -398,11 +411,12 @@ function evaluerPerceptions({
     genererIdTransmission,
     date,
   })
-  const idsCibles = new Set(cibles.map(({ participant }) => participant.id))
-  const participantsEvaluation = cibles.map(cible => ({ ...cible, estCible: true }))
+  const idsCibles = new Set(ciblesStructurelles.map(({ participant }) => participant.id))
+  const participantsEvaluation = ciblesStructurelles.map(cible => ({ ...cible, estCible: true }))
   const idsEvaluation = new Set(idsCibles)
   for (const transmission of planTransmissions?.transmissions ?? []) {
     for (const destinataireId of transmission.destinataireIds) {
+      if (resultatResolutionScene.active && !idsEligiblesScene.has(destinataireId)) continue
       if (idsEvaluation.has(destinataireId)) continue
       idsEvaluation.add(destinataireId)
       participantsEvaluation.push({ participant: etatInteraction.participants[destinataireId], estCible: false })
@@ -504,7 +518,7 @@ function evaluerPerceptions({
         'resolution conflits : un producteur d intentions metier est requis.'
       )
     }
-    resultatResolutionConflits = resoudreConflitsActions({
+    resultatResolutionConflits = resoudreConflitsActionsParScene({
       intentionsRetenues: resultatPlanification.intentionsRetenues,
       planificationsExecution: resultatPlanification.executionsPlanifiees.map(item => item.planification),
       ressourcesDisponibles: configurationResolutionConflits.ressourcesDisponibles,
@@ -634,6 +648,9 @@ export async function traiterParticipantUnique({
     emetteurId: participantId,
     action,
     date,
+    sceneId: evenementEntree.sceneId,
+    sousSceneId: evenementEntree.sousSceneId,
+    politiqueDiffusion: evenementEntree.politiqueDiffusion,
   })
 
   const traces = construireTraces({ participantId, genererId, date, turnResult })
@@ -737,6 +754,12 @@ export async function traiterInteraction(sollicitation, etatInteraction, dependa
 
   validerSollicitation(sollicitation)
   validerEtatInteraction(etatInteraction)
+  validerEtatScenes(etatInteraction)
+  resoudreDestinatairesScene({
+    evenement: sollicitation.evenement,
+    etatInteraction,
+    participantIdsCibles: sollicitation.participantIdsCibles,
+  })
   for (const [participantId, etatPrive] of Object.entries(etatInteraction.etatsPrives)) {
     validerEtatEpistemique(etatPrive?.epistemique, participantId)
     validerRelationsParticipant(etatPrive?.relations, participantId, etatInteraction.participants)
@@ -864,6 +887,25 @@ export {
   construireEvenementPercu,
   construireTracesPerception,
 } from '../perception/index.js'
+export {
+  ajouterMembresGroupeScene,
+  associerGroupeScene,
+  CODES_ERREUR_SCENE,
+  creerGroupeParticipants,
+  creerSceneInteraction,
+  deplacerVersSousScene,
+  entrerDansScene,
+  ErreurScene,
+  POLITIQUES_DIFFUSION_SCENE,
+  quitterScene,
+  rejoindreSceneParente,
+  resoudreDestinatairesScene,
+  STATUTS_GROUPE_PARTICIPANTS,
+  STATUTS_SCENE_INTERACTION,
+  transitionnerScene,
+  TYPES_SCENE_INTERACTION,
+  validerEtatScenes,
+} from '../scenes/index.js'
 export {
   CODES_ERREUR_EPISTEMIQUE,
   ErreurEpistemique,

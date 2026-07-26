@@ -16,6 +16,11 @@
  *
  * NOTE : ce type est distinct de types/Etat.js (V1, mono-personnage). Aucun type
  * existant n'est modifié ni remplacé.
+ *
+ * Champs RFC-013 optionnels :
+ * @property {import('./GroupeParticipants.js').GroupeParticipants[]} [groupes]
+ * @property {import('./SceneInteraction.js').SceneInteraction[]} [scenes]
+ * @property {string} [sceneActiveId]
  */
 
 /**
