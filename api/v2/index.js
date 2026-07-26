@@ -28,6 +28,5 @@ export {
   arbitrerIntentionsMetier,
 } from '../../core/arbitrage/index.js'
 export {
-  normaliserConfigurationResolutionConflits,
   resoudreConflitsActions,
 } from '../../core/resolution-conflits/index.js'
