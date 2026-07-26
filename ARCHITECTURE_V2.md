@@ -1300,3 +1300,24 @@ géolocalisation, déplacement physique simulé, calendrier, temps narratif
 avancé, voyage, inventaire, faction politique complexe, hiérarchie illimitée,
 permissions sociales avancées, consensus, IA, LLM, intégration Hadelas ou
 stabilisation d'API RFC-014.
+
+## RFC-014 — Stabilisation de l'API publique Gabida V2
+
+RFC-014 consolide les comportements RFC-004 à RFC-013 derrière la façade
+`api/v2/index.js`. Cette façade réexporte uniquement les contrats applicatifs
+stables et délègue `traiterInteractionV2` à l'unique moteur
+`traiterInteraction`, sans logique métier, transformation de résultat ou
+validation dupliquée.
+
+La version publique initiale est `2.0.0`. Les correctifs préservent le contrat,
+les versions mineures ajoutent des éléments rétrocompatibles et une version
+majeure est requise pour toute rupture.
+
+L'orchestrateur, les agrégateurs, l'adaptateur V1, les comparateurs, les helpers
+de présence, les allocations et le point fixe de résolution restent internes.
+Les chemins historiques ne sont pas supprimés. La surface, les champs
+conditionnels, les erreurs, les options et les garanties de compatibilité sont
+documentés dans `API_V2.md`.
+
+RFC-014 n'ajoute aucune capacité métier, API réseau, stockage, migration,
+publication npm ou adaptation Hadelas RFC-015.
