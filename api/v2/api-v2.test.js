@@ -132,7 +132,6 @@ describe('RFC-014 - surface publique Gabida V2', () => {
       'creerSceneInteraction',
       'deplacerVersSousScene',
       'entrerDansScene',
-      'normaliserConfigurationResolutionConflits',
       'quitterScene',
       'registerProvider',
       'rejoindreSceneParente',
@@ -155,6 +154,7 @@ describe('RFC-014 - surface publique Gabida V2', () => {
       'resoudreDestinatairesScene',
       'resoudreConflitsActionsParScene',
       'validerEntreesResolution',
+      'normaliserConfigurationResolutionConflits',
       'traiterParticipantUnique',
       'construirePlayerMessage',
     ]) {
