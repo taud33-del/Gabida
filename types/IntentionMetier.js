@@ -8,5 +8,5 @@
  * @property {string|null} cibleId
  * @property {unknown} contenu
  * @property {string} statut
- * @property {{conflit?: import('./RegleResolutionConflit.js').RegleResolutionConflit, [cle:string]:unknown}} metadata
+ * @property {{conflit?: import('./RegleResolutionConflit.js').RegleResolutionConflit, sceneId?:string, sousSceneId?:string, [cle:string]:unknown}} metadata
  */

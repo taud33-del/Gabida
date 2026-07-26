@@ -16,6 +16,11 @@
  *
  * Constantes utilisées :
  *   - VISIBILITES_EVENEMENT (constants/VisibilitesEvenement.js) → EvenementInteraction.visibilite
+ *
+ * Références RFC-013 optionnelles :
+ * @property {string} [sceneId]
+ * @property {string} [sousSceneId]
+ * @property {string} [politiqueDiffusion]
  */
 
 /**

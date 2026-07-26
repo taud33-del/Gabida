@@ -233,7 +233,7 @@ export function construireActionParticipant({ id, participantId, reponseIA, dest
  * @param {string} params.date
  * @returns {import('../../types/EvenementInteraction.js').EvenementInteraction}
  */
-export function construireEvenementProduit({ id, type, emetteurId, action, date }) {
+export function construireEvenementProduit({ id, type, emetteurId, action, date, sceneId, sousSceneId, politiqueDiffusion }) {
   return {
     id,
     type,
@@ -243,6 +243,9 @@ export function construireEvenementProduit({ id, type, emetteurId, action, date 
     visibilite     : action.visibilite,
     date,
     metadata       : { ...action.metadata },
+    ...(sceneId === undefined ? {} : { sceneId }),
+    ...(sousSceneId === undefined ? {} : { sousSceneId }),
+    ...(politiqueDiffusion === undefined ? {} : { politiqueDiffusion }),
   }
 }
 

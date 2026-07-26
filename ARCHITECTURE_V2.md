@@ -1224,3 +1224,76 @@ RFC-012 ne comprend volontairement aucune simulation physique, aucun deplacement
 spatial, aucune chronologie narrative avancee, aucune negociation, revision des
 intentions, cout emotionnel, strategie, consensus, groupe ou scene RFC-013,
 integration Hadelas, IA ou LLM.
+
+## RFC-013 — Groupes, scènes et sous-scènes déterministes
+
+RFC-013 ajoute un contexte structurel expérimental avant RFC-006. Un groupe est
+une association logique stable ; son association à une scène n'ajoute jamais
+implicitement ses membres. Une scène est un contexte d'interaction explicite.
+Une sous-scène est un enfant direct qui isole temporairement une partie des
+participants et des événements.
+
+### Présence et hiérarchie
+
+La profondeur maximale est un niveau : une scène `PRINCIPALE` sans parent et des
+scènes `SOUS_SCENE` dont le parent est principal. Un participant d'une
+sous-scène reste structurellement membre de la scène parente, mais sa présence
+effective est la scène active la plus spécifique. Entrer dans une sous-scène
+n'efface donc pas la présence parente ; rejoindre le parent retire seulement la
+présence enfant.
+
+Les groupes et scènes conservent l'ordre explicite des participants. Les
+références, doublons, statuts, parents, groupes associés et participants sont
+validés avant le premier appel à `executeTurn()`.
+
+### Diffusion et perception
+
+La résolution structurelle précède RFC-006 et produit uniquement les candidats
+éligibles. `SCENE_UNIQUEMENT` limite à la présence effective de la scène ;
+`SCENE_ET_PARENT` unit la sous-scène et son parent ; `DESCENDANTS` unit une
+principale et ses enfants actifs sans doublon ; `CIBLES_EXPLICITES` utilise les
+destinataires déclarés ; `GLOBALE_INTERACTION` utilise tous les participants,
+uniquement lorsqu'elle est demandée explicitement.
+
+RFC-013 ne décide jamais du contenu perçu : RFC-006 conserve cette
+responsabilité. Un participant hors périmètre structurel n'atteint ni RFC-006
+ni l'orchestrateur. Une scène suspendue sélectionne zéro participant. Un
+événement d'une scène fermée ou inconnue est rejeté avant tout provider.
+
+### Transitions
+
+Les transitions pures autorisées sont `PREPAREE → ACTIVE`,
+`ACTIVE → SUSPENDUE`, `SUSPENDUE → ACTIVE`, `ACTIVE → FERMEE` et
+`SUSPENDUE → FERMEE`. Une sous-scène ne peut être activée que sous un parent
+actif. Une scène principale ne peut être fermée tant qu'un enfant n'est pas
+fermé ; aucune fermeture implicite en cascade n'est réalisée.
+
+### Propagation, intentions et conflits
+
+Les événements produits recopient `sceneId`, `sousSceneId` et la politique
+explicite de l'événement source. La file RFC-005 reste FIFO et n'ajoute aucun
+événement : chaque événement propagé repasse simplement par le filtre
+structurel RFC-013 avant RFC-006.
+
+Les intentions RFC-011 conservent les références de scène dans leurs
+métadonnées. RFC-012 résout les conflits séparément par scène la plus
+spécifique ; deux sous-scènes distinctes ne partagent ni exclusivité ni
+ressource par défaut. Aucune portée globale de ressource n'est introduite.
+
+### Atomicité et compatibilité
+
+Les opérations produisent de nouveaux tableaux et objets, sans mutation. Les
+identifiants de transition sont explicites ; aucune horloge, locale,
+`Date.now()`, `Math.random()` ou UUID aléatoire n'est consulté.
+
+Sans champs `groupes`/`scenes` et sans référence `sceneId`, le chemin RFC-004 à
+RFC-012 est inchangé : aucune scène artificielle, aucun champ RFC-013 dans le
+résultat, mêmes cibles, appels provider, actions, événements et ordre.
+
+### Limites volontaires
+
+RFC-013 ne contient ni carte, moteur spatial, distance, coordonnées,
+géolocalisation, déplacement physique simulé, calendrier, temps narratif
+avancé, voyage, inventaire, faction politique complexe, hiérarchie illimitée,
+permissions sociales avancées, consensus, IA, LLM, intégration Hadelas ou
+stabilisation d'API RFC-014.

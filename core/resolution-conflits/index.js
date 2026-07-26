@@ -286,6 +286,38 @@ export function resoudreConflitsActions({
   }
 }
 
+/**
+ * RFC-013 : isole par défaut les conflits par scène la plus spécifique.
+ * L'absence de référence conserve exactement le résolveur RFC-012 historique.
+ */
+export function resoudreConflitsActionsParScene(entrees) {
+  const groupes = new Map()
+  for (const intention of entrees.intentionsRetenues) {
+    const sceneId = intention.metadata?.sousSceneId ?? intention.metadata?.sceneId ?? null
+    if (!groupes.has(sceneId)) groupes.set(sceneId, [])
+    groupes.get(sceneId).push(intention)
+  }
+  if (groupes.size <= 1) return resoudreConflitsActions(entrees)
+  const plans = new Map(entrees.planificationsExecution.map(item => [item.intentionId, item]))
+  const resultats = [...groupes.values()].map(intentions => resoudreConflitsActions({
+    intentionsRetenues: intentions,
+    planificationsExecution: intentions.map(item => plans.get(item.id)),
+    ressourcesDisponibles: entrees.ressourcesDisponibles,
+  }))
+  const intentionsExecutables = resultats.flatMap(item => item.intentionsExecutables)
+    .sort(comparerIntentionsMetier)
+  return {
+    intentionsExecutables,
+    intentionsEcarteesParConflit: resultats.flatMap(item => item.intentionsEcarteesParConflit)
+      .sort(comparerIntentionsMetier),
+    conflitsDetectes: resultats.flatMap(item => item.conflitsDetectes),
+    planificationsFinales: intentionsExecutables.map((intention, ordreExecution) => ({
+      ...plans.get(intention.id), ordreExecution,
+    })),
+    ordreExecutionFinal: intentionsExecutables.map(item => item.id),
+  }
+}
+
 export {
   CODES_ERREUR_RESOLUTION_CONFLIT,
   ErreurResolutionConflit,
