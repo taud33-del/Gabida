@@ -221,7 +221,8 @@ Ne font pas partie de l'API publique :
 - comparateurs et tris locaux ;
 - helpers de présence effective ;
 - point fixe et allocations de conflits ;
-- validateurs locaux spécialisés et normalisateurs internes ;
+- validateurs locaux spécialisés et normalisateurs internes, notamment
+  `normaliserConfigurationResolutionConflits` ;
 - fixtures et fonctions de tests ;
 - organisation de `core/*`.
 
