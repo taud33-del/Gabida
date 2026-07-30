@@ -84,7 +84,15 @@ describe('parité V1 / V2', () => {
     expect(parEtape.influences).toEqual(v1.filtreRelationnel)
     expect(parEtape.ressenti).toEqual(v1.ressenti)
     expect(parEtape.decision).toEqual(v1.decision)
-    expect(parEtape.reponse).toEqual(v1.reponseIA)
+    expect(parEtape.reponse).toEqual({
+      ...v1.reponseIA,
+      meta: {
+        ...v1.reponseIA.meta,
+        dureeMs: parEtape.reponse.meta.dureeMs,
+      },
+    })
+    expect(parEtape.reponse.meta.dureeMs).toBeGreaterThanOrEqual(0)
+    expect(v1.reponseIA.meta.dureeMs).toBeGreaterThanOrEqual(0)
     expect(parEtape.memoire).toEqual(v1.miseAJourMemoire)
 
     // ── Parité mémoire et historique conversationnel du participant ──
