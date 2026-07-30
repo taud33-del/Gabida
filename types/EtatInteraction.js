@@ -55,4 +55,7 @@
  *
  * @property {Object} metadata
  *   [obligatoire] Métadonnées libres. Peut être un objet vide.
+ *
+ * @property {import('./dialogue/EtatDialogue.js').EtatDialogue} [etatDialogue]
+ * Etat évolutif partagé du dialogue.
  */

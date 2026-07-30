@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node bin/gabida.js",
+    "dialogue:integration": "node bin/dialogue-integration.js",
+    "dialogue:evaluate": "node bin/dialogue-evaluation.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "devDependencies": {
@@ -15,5 +17,8 @@
     "transform": {},
     "testPathIgnorePatterns": ["/node_modules/", "/legacy/"],
     "modulePathIgnorePatterns": ["/legacy/"]
+  },
+  "dependencies": {
+    "openai": "^7.1.0"
   }
 }

@@ -208,7 +208,16 @@ describe('RFC-014 - facade fonctionnelle et compatibilite', () => {
     const publicResult = await apiV2.traiterInteractionV2(sollicitation, etat, publicDeps)
     compteurUuid = 0
     const internalResult = await traiterInteraction(sollicitation, structuredClone(etat), interneDeps)
-    expect(publicResult).toEqual(internalResult)
+    const publicDureeMs = publicResult.traces.find(trace => trace.etape === 'reponse').donnees.meta.dureeMs
+    const internalDureeMs = internalResult.traces.find(trace => trace.etape === 'reponse').donnees.meta.dureeMs
+    const internalResultAvecDureePublique = {
+      ...internalResult,
+      traces: internalResult.traces.map(trace => trace.etape === 'reponse'
+        ? { ...trace, donnees: { ...trace.donnees, meta: { ...trace.donnees.meta, dureeMs: publicDureeMs } } }
+        : trace),
+    }
+    expect(publicResult).toEqual(internalResultAvecDureePublique)
+    expect(Math.abs(publicDureeMs - internalDureeMs)).toBeLessThanOrEqual(1)
     expect(etat).toEqual(copie)
     expect(apiV2.traiterInteractionV2).toBe(traiterInteraction)
   })

@@ -52,4 +52,9 @@
  *
  * @property {Object} metadata
  *   [obligatoire] Métadonnées libres. Peut être un objet vide.
+ *
+ * @property {import('./dialogue/ReferenceDialogue.js').ReferenceDialogue[]} [referencesDialogue]
+ * Références explicites vers les éléments de EtatDialogue concernés par
+ * cet événement.
+ * Peut être un tableau vide.
  */
