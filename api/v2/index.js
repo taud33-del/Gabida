@@ -13,6 +13,17 @@ export { traiterInteraction as traiterInteractionV2 } from '../../core/interacti
 export { registerProvider } from '../index.js'
 
 export {
+  createCultureEngine,
+  validateCultureConfiguration,
+  buildCultureContext,
+  evaluateCulturePlans,
+  loadCultureCharacter,
+  addCultureUserMessage,
+  startCultureConversation,
+  generateCharacterResponse,
+} from '../../core/experiences/culture/index.js'
+
+export {
   ajouterMembresGroupeScene,
   associerGroupeScene,
   creerGroupeParticipants,

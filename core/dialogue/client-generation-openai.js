@@ -41,11 +41,18 @@ export function creerClientGenerationOpenAI(options) {
   const client = options.client
   const modele = options.modele
   return Object.freeze({
-    async generer(entree) {
-      const reponse = await client.responses.create({
+    async generer(entree, generationOptions = {}) {
+      const requete = {
         model: modele,
         input: entree.contenu,
-      })
+        ...(generationOptions.request ?? {}),
+      }
+      const transportOptions = generationOptions.timeoutMs === undefined
+        ? undefined
+        : { timeout: generationOptions.timeoutMs }
+      const reponse = transportOptions
+        ? await client.responses.create(requete, transportOptions)
+        : await client.responses.create(requete)
       const texte = extraireTexte(reponse)
       return creerResultatGeneration(texte)
     },

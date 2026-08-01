@@ -84,6 +84,20 @@ describe('RFC-018.6a - ClientGenerationOpenAI', () => {
     })
   })
 
+  test('transmet les options structurees et le timeout quand ils sont demandes', async () => {
+    const options = creerOptions()
+    const format = { type: 'json_schema', name: 'test', strict: true, schema: { type: 'object' } }
+    await creerClientGenerationOpenAI(options).generer(
+      { contenu: 'entree' },
+      { request: { text: { format } }, timeoutMs: 2500 },
+    )
+    expect(options.client.responses.create).toHaveBeenCalledWith({
+      model: 'modele-test',
+      input: 'entree',
+      text: { format },
+    }, { timeout: 2500 })
+  })
+
   test('transmet exactement le modele', async () => {
     const options = creerOptions({ modele: 'modele-exact' })
     await creerClientGenerationOpenAI(options).generer({})

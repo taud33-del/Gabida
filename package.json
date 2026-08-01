@@ -7,6 +7,9 @@
     "start": "node bin/gabida.js",
     "dialogue:integration": "node bin/dialogue-integration.js",
     "dialogue:evaluate": "node bin/dialogue-evaluation.js",
+    "culture:demo": "node bin/culture-demo.js",
+    "culture:http-demo": "node bin/culture-http-demo.js",
+    "server": "node bin/gabida-server.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "devDependencies": {
