@@ -47,7 +47,7 @@ Le générateur conserve le contrat interne du moteur :
 
 Le plan contient exactement `understood`, `intention`, `contribution`, `relevance`, `novelty`, `complementarity`, `roleCompliance`, `personalityCompliance`, `timing`, `estimatedLength`, `shouldSpeak` et `reason`. Une sortie de plan invalide autorise une seule demande de réparation. La réponse visible n'est jamais demandée pendant cette phase.
 
-Pour la réponse, le `speaker` utilise uniquement sa langue temporaire cible. Le `translator` répond par défaut dans la langue de l'utilisateur et aide sans se substituer au speaker. Le contexte interne transmis au modèle contient la fiche et les règles nécessaires, mais les routes publiques ne les retournent jamais.
+Pour la réponse, le `speaker` utilise uniquement sa langue temporaire cible. Le `translator` n'est planifié qu'après cette réponse et reçoit sa source exacte. Il répond par défaut dans la langue de l'utilisateur pour traduire ou expliquer une nuance, sans produire une seconde réponse indépendante. Il peut rester silencieux si son intervention n'apporte rien. Le contexte interne transmis au modèle contient la fiche et les règles nécessaires, mais les routes publiques ne les retournent jamais.
 
 ## Requête de départ
 

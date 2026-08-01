@@ -63,14 +63,14 @@ describe('experience culture - planification', () => {
     expect(context.layers.map(layer => layer.priority)).toEqual([1, 2, 3, 4, 5, 6])
   })
 
-  test('genere exactement deux plans et charge seulement les personnages choisis', async () => {
+  test('planifie uniquement le speaker au demarrage et charge seulement les personnages choisis', async () => {
     const generator = makeGenerator()
     const engine = createCultureEngine({ generator, characterLoader, idFactory: () => 'c1' })
     const result = await engine.startCultureConversation(configuration())
-    expect(generator.plan).toHaveBeenCalledTimes(2)
+    expect(generator.plan).toHaveBeenCalledTimes(1)
     expect(characterLoader).toHaveBeenCalledWith('solene-han')
     expect(characterLoader).toHaveBeenCalledWith('sonia-nadir')
-    expect(result.availableSpeakers).toHaveLength(2)
+    expect(result.availableSpeakers).toEqual([{ characterId: 'solene-han', status: 'available' }])
   })
 
   test('permet a un personnage de rester silencieux', async () => {
@@ -91,13 +91,26 @@ describe('experience culture - planification', () => {
 })
 
 describe('experience culture - choix et reponse', () => {
+  test('fait progresser explicitement la phase du tour', async () => {
+    const store = new Map()
+    const engine = createCultureEngine({ generator: makeGenerator(), characterLoader, idFactory: () => 'phases', conversationStore: store })
+    await engine.startCultureConversation(configuration())
+    expect(store.get('phases').turn).toMatchObject({ phase: 'waiting-for-speaker', speakerResponseId: null, translatorResponseId: null })
+    await engine.generateCharacterResponse({ conversationId: 'phases', characterId: 'solene-han' })
+    expect(store.get('phases').turn).toMatchObject({ phase: 'waiting-for-translator', speakerResponseId: 'phases:turn:1:speaker', translatorResponseId: null })
+    await engine.generateCharacterResponse({ conversationId: 'phases', characterId: 'sonia-nadir' })
+    expect(store.get('phases').turn).toMatchObject({ phase: 'completed', translatorResponseId: 'phases:turn:1:translator' })
+    await engine.addCultureUserMessage({ conversationId: 'phases', message: 'Nouveau sujet' })
+    expect(store.get('phases').turn).toMatchObject({ phase: 'waiting-for-speaker', speakerResponseId: null, translatorResponseId: null })
+  })
+
   test('genere une seule reponse, met a jour l historique et reevalue le second', async () => {
     const generator = makeGenerator()
     const engine = createCultureEngine({ generator, characterLoader, idFactory: () => 'c3' })
     await engine.startCultureConversation(configuration())
     const result = await engine.generateCharacterResponse({ conversationId: 'c3', characterId: 'solene-han' })
     expect(generator.respond).toHaveBeenCalledTimes(1)
-    expect(generator.plan).toHaveBeenCalledTimes(3)
+    expect(generator.plan).toHaveBeenCalledTimes(2)
     expect(result.reevaluatedIntentions).toHaveLength(1)
     expect(result.reevaluatedIntentions[0].characterId).toBe('sonia-nadir')
     const state = engine.getConversationState('c3')
@@ -109,7 +122,7 @@ describe('experience culture - choix et reponse', () => {
     const plan = jest.fn(async ({ characterId }) => characterId === 'sonia-nadir' ? { ...availablePlan(), shouldSpeak: false } : availablePlan())
     const engine = createCultureEngine({ generator: makeGenerator(plan), characterLoader, idFactory: () => 'c4' })
     await engine.startCultureConversation(configuration())
-    await expect(engine.generateCharacterResponse({ conversationId: 'c4', characterId: 'sonia-nadir' })).rejects.toThrow(/intention disponible/)
+    await expect(engine.generateCharacterResponse({ conversationId: 'c4', characterId: 'sonia-nadir' })).rejects.toThrow(/avant la reponse du speaker/)
   })
 
   test('transmet au speaker sa langue temporaire sans muter sa fiche', async () => {
@@ -126,10 +139,16 @@ describe('experience culture - choix et reponse', () => {
     const generator = makeGenerator()
     const engine = createCultureEngine({ generator, characterLoader, idFactory: () => 'c6' })
     await engine.startCultureConversation(configuration())
+    await engine.generateCharacterResponse({ conversationId: 'c6', characterId: 'solene-han' })
     await engine.generateCharacterResponse({ conversationId: 'c6', characterId: 'sonia-nadir' })
-    const role = generator.respond.mock.calls[0][0].context.layers[3].content
+    const role = generator.respond.mock.calls[1][0].context.layers[3].content
     expect(role).toMatchObject({ role: 'translator', language: 'sv', userLanguage: 'fr' })
     expect(role.rules.join(' ')).toMatch(/Traduire seulement/)
+    expect(role.translationSource).toMatchObject({
+      text: 'Hej! Vad vill du upptäcka först?',
+      language: 'sv',
+      userMessage: configuration().message,
+    })
   })
 
   test('ne modifie pas les points d entree question et aventure existants', () => {
@@ -139,7 +158,7 @@ describe('experience culture - choix et reponse', () => {
 })
 
 describe('experience culture - messages utilisateur multi-tour', () => {
-  test('ajoute un second message, produit deux plans et ne genere aucune reponse', async () => {
+  test('ajoute un second message, planifie seulement le speaker et ne genere aucune reponse', async () => {
     const generator = makeGenerator()
     const engine = createCultureEngine({ generator, characterLoader, idFactory: () => 'm1' })
     await engine.startCultureConversation(configuration())
@@ -148,11 +167,10 @@ describe('experience culture - messages utilisateur multi-tour', () => {
       conversationId: 'm1',
       availableSpeakers: [
         { characterId: 'solene-han', status: 'available' },
-        { characterId: 'sonia-nadir', status: 'available' },
       ],
       conversationStatus: 'active',
     })
-    expect(generator.plan).toHaveBeenCalledTimes(4)
+    expect(generator.plan).toHaveBeenCalledTimes(2)
     expect(generator.respond).not.toHaveBeenCalled()
     expect(engine.getConversationState('m1').messages.at(-1)).toEqual({ role: 'user', content: 'Et pour le fika ?' })
   })
@@ -169,16 +187,18 @@ describe('experience culture - messages utilisateur multi-tour', () => {
     expect(result.availableSpeakers).toEqual([])
   })
 
-  test('conserve une intention differee encore pertinente apres reevaluation', async () => {
+  test('termine le tour si le translator est differe apres la reponse du speaker', async () => {
     const plan = jest.fn(async ({ characterId }) => characterId === 'sonia-nadir'
       ? { ...availablePlan('Expliquer plus tard un terme suedois precis.'), timing: 0.2, reason: 'Pertinent mais encore trop tot.' }
       : availablePlan(`Sujet principal ${characterId}`))
-    const engine = createCultureEngine({ generator: makeGenerator(plan), characterLoader, idFactory: () => 'm3' })
+    const store = new Map()
+    const engine = createCultureEngine({ generator: makeGenerator(plan), characterLoader, idFactory: () => 'm3', conversationStore: store })
     await engine.startCultureConversation(configuration())
-    await engine.addCultureUserMessage({ conversationId: 'm3', message: 'Pouvez-vous continuer ?' })
+    const response = await engine.generateCharacterResponse({ conversationId: 'm3', characterId: 'solene-han' })
     const callsForSonia = plan.mock.calls.filter(([input]) => input.characterId === 'sonia-nadir')
-    expect(callsForSonia).toHaveLength(2)
-    expect(engine.getConversationState('m3').availableSpeakers).toEqual([{ characterId: 'solene-han', status: 'available' }])
+    expect(callsForSonia).toHaveLength(1)
+    expect(response.availableSpeakers).toEqual([])
+    expect(store.get('m3').turn.phase).toBe('completed')
   })
 
   test('refuse une conversation inconnue', async () => {
@@ -205,17 +225,20 @@ describe('experience culture - messages utilisateur multi-tour', () => {
     await expect(engine.addCultureUserMessage({ conversationId: 'm5', message: 'Encore une question' })).rejects.toThrow(/inactive/)
   })
 
-  test('execute le cycle complet start, reponse, message, nouvelle reponse', async () => {
+  test('execute deux cycles complets dans l ordre speaker puis translator', async () => {
     const generator = makeGenerator()
     const engine = createCultureEngine({ generator, characterLoader, idFactory: () => 'm6' })
     const started = await engine.startCultureConversation(configuration())
     await engine.generateCharacterResponse({ conversationId: started.conversationId, characterId: 'solene-han' })
+    await engine.generateCharacterResponse({ conversationId: started.conversationId, characterId: 'sonia-nadir' })
     const nextTurn = await engine.addCultureUserMessage({ conversationId: 'm6', message: 'Sonia, pouvez-vous traduire ?' })
-    expect(nextTurn.availableSpeakers.some(speaker => speaker.characterId === 'sonia-nadir')).toBe(true)
+    expect(nextTurn.availableSpeakers).toEqual([{ characterId: 'solene-han', status: 'available' }])
+    await expect(engine.generateCharacterResponse({ conversationId: 'm6', characterId: 'sonia-nadir' })).rejects.toThrow(/avant la reponse du speaker/)
+    await engine.generateCharacterResponse({ conversationId: 'm6', characterId: 'solene-han' })
     const secondResponse = await engine.generateCharacterResponse({ conversationId: 'm6', characterId: 'sonia-nadir' })
     expect(secondResponse.characterId).toBe('sonia-nadir')
     const finalState = engine.getConversationState('m6')
-    expect(finalState.messages.map(message => message.role)).toEqual(['user', 'character', 'user', 'character'])
+    expect(finalState.messages.map(message => message.role)).toEqual(['user', 'character', 'character', 'user', 'character', 'character'])
     expect(finalState.messages.at(-1).language).toBe('fr')
     expect(new Set(finalState.availableSpeakers.map(speaker => speaker.characterId)).size).toBe(finalState.availableSpeakers.length)
   })

@@ -47,6 +47,15 @@ export function validateCultureConfiguration(configuration) {
 }
 
 export function buildCultureContext({ participant, character, state, lastUserMessage }) {
+  const translationSource = participant.role === 'translator' && state.turn?.speakerResponse
+    ? Object.freeze({
+        speakerResponseId: state.turn.speakerResponseId,
+        text: state.turn.speakerResponse.text,
+        language: state.turn.speakerResponse.language,
+        userMessage: state.turn.userMessage,
+        explainedInformation: Object.freeze([...state.explainedInformation]),
+      })
+    : null
   return Object.freeze({
     layers: Object.freeze([
       Object.freeze({ priority: 1, type: 'fundamental', content: FUNDAMENTAL_RULES }),
@@ -57,6 +66,7 @@ export function buildCultureContext({ participant, character, state, lastUserMes
         language: participant.language,
         userLanguage: state.userLanguage,
         rules: ROLE_RULES[participant.role],
+        translationSource,
       }) }),
       Object.freeze({ priority: 5, type: 'conversation-state', content: state }),
       Object.freeze({ priority: 6, type: 'last-user-message', content: lastUserMessage }),
@@ -120,7 +130,30 @@ function publicSpeakers(state) {
 }
 
 function cloneState(state) {
-  return { ...state, participants: [...state.participants], messages: [...state.messages], activeIntentions: [...state.activeIntentions], deferredIntentions: [...state.deferredIntentions], explainedInformation: [...state.explainedInformation], openQuestions: [...state.openQuestions] }
+  return { ...state, participants: [...state.participants], messages: [...state.messages], activeIntentions: [...state.activeIntentions], deferredIntentions: [...state.deferredIntentions], explainedInformation: [...state.explainedInformation], openQuestions: [...state.openQuestions], turn: state.turn ? { ...state.turn, speakerResponse: state.turn.speakerResponse ? { ...state.turn.speakerResponse } : null } : null }
+}
+
+function participantForRole(state, role) {
+  return state.participants.find(participant => participant.role === role)
+}
+
+function beginTurn(state, message) {
+  const sequence = (state.turnSequence ?? 0) + 1
+  state.turnSequence = sequence
+  state.turn = {
+    turnId: `${state.conversationId}:turn:${sequence}`,
+    userMessageId: `${state.conversationId}:user:${sequence}`,
+    userMessage: message,
+    phase: participantForRole(state, 'speaker') ? 'waiting-for-speaker' : 'completed',
+    speakerResponseId: null,
+    translatorResponseId: null,
+    speakerResponse: null,
+  }
+}
+
+function keepEvaluatedIntentions(state, evaluated) {
+  state.activeIntentions = evaluated.filter(plan => plan.status !== 'deferred')
+  state.deferredIntentions = evaluated.filter(plan => plan.status === 'deferred')
 }
 
 function publicConversationState(state) {
@@ -187,9 +220,10 @@ export function createCultureEngine({
       activeIntentions: [], deferredIntentions: [], lastSpeakerId: null,
       explainedInformation: [], openQuestions: [], status: 'active', characterSheets,
     }
-    const evaluated = await planParticipants(state, state.participants, configuration.message)
-    state.activeIntentions = evaluated.filter(p => p.status !== 'deferred')
-    state.deferredIntentions = evaluated.filter(p => p.status === 'deferred')
+    beginTurn(state, configuration.message)
+    const speaker = participantForRole(state, 'speaker')
+    const evaluated = speaker ? await planParticipants(state, [speaker], configuration.message) : []
+    keepEvaluatedIntentions(state, evaluated)
     conversations.set(state.conversationId, state)
     return { conversationId: state.conversationId, availableSpeakers: publicSpeakers(state) }
   }
@@ -197,9 +231,16 @@ export function createCultureEngine({
   async function generateCharacterResponse({ conversationId, characterId }) {
     const current = conversations.get(conversationId)
     if (!current) throw new CultureValidationError('Conversation culture introuvable.')
+    const participant = current.participants.find(item => item.characterId === characterId)
+    if (!participant) throw new CultureValidationError('Ce personnage ne participe pas a la conversation.')
+    if (participant.role === 'translator' && current.turn?.phase !== 'waiting-for-translator') {
+      throw new CultureValidationError('Le translator ne peut pas intervenir avant la reponse du speaker.')
+    }
+    if (participant.role === 'speaker' && current.turn?.phase !== 'waiting-for-speaker') {
+      throw new CultureValidationError('Le speaker ne peut pas intervenir dans cette phase du tour.')
+    }
     const intention = current.activeIntentions.find(item => item.characterId === characterId && item.status === 'available')
     if (!intention) throw new CultureValidationError('Ce personnage ne possede pas d intention disponible.')
-    const participant = current.participants.find(item => item.characterId === characterId)
     const context = buildCultureContext({ participant, character: current.characterSheets[characterId], state: current, lastUserMessage: current.messages.findLast(m => m.role === 'user')?.content ?? '' })
     log('selected-character', { characterId })
     const generated = await generator.respond({ characterId, intention, context })
@@ -215,15 +256,24 @@ export function createCultureEngine({
     if (Array.isArray(generated.explainedInformation)) next.explainedInformation.push(...generated.explainedInformation)
     if (Array.isArray(generated.openQuestions)) next.openQuestions = [...generated.openQuestions]
 
-    const others = next.participants.filter(item => item.characterId !== characterId)
-    const reevaluated = await planParticipants(next, others, next.messages.findLast(m => m.role === 'user')?.content ?? '')
-    log('other-participant-reevaluation', reevaluated)
-    const reevaluatedIds = new Set(others.map(item => item.characterId))
-    next.activeIntentions = [
-      ...next.activeIntentions.filter(item => !reevaluatedIds.has(item.characterId)),
-      ...reevaluated.filter(p => p.status !== 'deferred'),
-    ]
-    next.deferredIntentions = reevaluated.filter(p => p.status === 'deferred')
+    let reevaluated = []
+    if (participant.role === 'speaker') {
+      next.turn.phase = 'waiting-for-translator'
+      next.turn.speakerResponseId = `${next.turn.turnId}:speaker`
+      next.turn.speakerResponse = { text: generated.text, language: responseLanguage }
+      const translator = participantForRole(next, 'translator')
+      reevaluated = translator
+        ? await planParticipants(next, [translator], next.turn.userMessage)
+        : []
+      log('translator-reevaluation', reevaluated)
+      keepEvaluatedIntentions(next, reevaluated)
+      if (!reevaluated.some(plan => plan.status === 'available')) next.turn.phase = 'completed'
+    } else {
+      next.turn.translatorResponseId = `${next.turn.turnId}:translator`
+      next.turn.phase = 'completed'
+      next.activeIntentions = []
+      next.deferredIntentions = []
+    }
     conversations.set(conversationId, next)
     return { conversationId, characterId, response: generated.text, availableSpeakers: publicSpeakers(next), reevaluatedIntentions: reevaluated.map(({ characterId: id, status }) => ({ characterId: id, status })) }
   }
@@ -246,9 +296,10 @@ export function createCultureEngine({
     next.deferredIntentions = []
     log('intentions-to-reevaluate', previousIntentions)
 
-    const evaluated = await planParticipants(next, next.participants, message)
-    next.activeIntentions = evaluated.filter(plan => plan.status !== 'deferred')
-    next.deferredIntentions = evaluated.filter(plan => plan.status === 'deferred')
+    beginTurn(next, message)
+    const speaker = participantForRole(next, 'speaker')
+    const evaluated = speaker ? await planParticipants(next, [speaker], message) : []
+    keepEvaluatedIntentions(next, evaluated)
     conversations.set(conversationId, next)
     return {
       conversationId,

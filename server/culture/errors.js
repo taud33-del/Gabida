@@ -11,7 +11,7 @@ export function mapCultureHttpError(error) {
   if (/inactive/i.test(message)) {
     return { status: 409, error: { code: 'CULTURE_CONVERSATION_INACTIVE', message: 'La conversation est inactive.' } }
   }
-  if (/intention disponible/i.test(message)) {
+  if (/intention disponible|avant la reponse du speaker|phase du tour/i.test(message)) {
     return { status: 409, error: { code: 'CULTURE_SPEAKER_NOT_AVAILABLE', message: 'Ce personnage n’est pas disponible.' } }
   }
   return { status: 400, error: { code: 'CULTURE_INVALID_REQUEST', message } }

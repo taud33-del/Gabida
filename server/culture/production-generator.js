@@ -85,11 +85,16 @@ function contextPayload(input) {
 }
 
 function planPrompt(input) {
+  const temporaryRole = input.context.layers[3].content
+  const translatorRule = temporaryRole.role === 'translator'
+    ? 'Ton plan doit porter uniquement sur la derniere intervention exacte du speaker: la traduire, en expliquer une nuance linguistique ou culturelle, ou rester silencieux si cela n apporte rien. Ne planifie jamais une seconde reponse independante a la demande utilisateur.'
+    : 'Tu es le speaker du tour courant et tu reponds naturellement a la demande utilisateur dans ta langue temporaire, sans traduire ta propre reponse.'
   return [
     'Construis uniquement le plan interne du personnage au format JSON impose.',
     'Ne redige aucune reponse visible, aucun dialogue et aucun raisonnement detaille.',
     'Evalue la pertinence, la nouveaute, la complementarite, le role, la personnalite et le moment.',
     'Le personnage peut choisir de se taire.',
+    translatorRule,
     contextPayload(input),
   ].join('\n\n')
 }
@@ -98,7 +103,13 @@ function responsePrompt(input, expectedLanguage) {
   const temporaryRole = input.context.layers[3].content
   const roleRule = temporaryRole.role === 'speaker'
     ? `Reponds uniquement en ${temporaryRole.language}, sans traduction automatique.`
-    : `Reponds par defaut en ${temporaryRole.userLanguage}; aide sans parler a la place du speaker.`
+    : [
+        `Reponds par defaut en ${temporaryRole.userLanguage}.`,
+        'Instruction prioritaire: ta reponse doit porter sur la derniere intervention du speaker.',
+        'Tu ne dois pas repondre directement a la demande utilisateur comme un second interlocuteur independant.',
+        'Traduis cette intervention ou explique seulement une nuance linguistique, une reference culturelle ou un passage difficile, sans repetition ni lecon systematique.',
+        `Source exacte a traiter: ${JSON.stringify(temporaryRole.translationSource)}.`,
+      ].join(' ')
   return [
     'Genere uniquement la reponse visible du personnage choisi.',
     roleRule,

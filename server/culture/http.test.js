@@ -37,7 +37,7 @@ describe('serveur HTTP Culture', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toMatch(/^application\/json/)
     expect(typeof body.conversationId).toBe('string')
-    expect(body.availableSpeakers).toHaveLength(2)
+    expect(body.availableSpeakers).toEqual([{ characterId: 'solene-han', status: 'available' }])
   })
 
   test('conserve la meme conversation et instance pendant le cycle complet', async () => {
@@ -56,6 +56,16 @@ describe('serveur HTTP Culture', () => {
     expect(message.conversationId).toBe(started.conversationId)
     expect(message.conversationStatus).toBe('active')
     expect(message).not.toHaveProperty('response')
+    expect(message.availableSpeakers).toEqual([{ characterId: 'solene-han', status: 'available' }])
+
+    const blockedTranslator = await post(baseUrl, '/api/v2/culture/response', {
+      conversationId: started.conversationId, characterId: 'sonia-nadir',
+    })
+    expect(blockedTranslator.status).toBe(409)
+
+    await post(baseUrl, '/api/v2/culture/response', {
+      conversationId: started.conversationId, characterId: 'solene-han',
+    })
 
     const sonia = await (await post(baseUrl, '/api/v2/culture/response', {
       conversationId: started.conversationId, characterId: 'sonia-nadir',

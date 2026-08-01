@@ -3,9 +3,9 @@
 Ce module expose un moteur conversationnel en mémoire, indépendant de Hadelas :
 
 - `createCultureEngine({ generator })` crée une instance et son stockage actif ;
-- `startCultureConversation(configuration)` valide, charge les fiches, produit les plans et retourne les personnages disponibles ;
-- `generateCharacterResponse({ conversationId, characterId })` produit seulement la réponse choisie puis réévalue l’autre participant ;
-- `addCultureUserMessage({ conversationId, message })` ajoute un message, réévalue les intentions et retourne les personnages disponibles sans générer de réponse.
+- `startCultureConversation(configuration)` valide, charge les fiches et planifie uniquement le `speaker` ;
+- `generateCharacterResponse({ conversationId, characterId })` produit la réponse choisie puis planifie le `translator` seulement après une réponse du `speaker` ;
+- `addCultureUserMessage({ conversationId, message })` ouvre un nouveau tour et réévalue uniquement le `speaker`, sans générer de réponse.
 
 La façade V2 exporte aussi `addCultureUserMessage(engine, input)` pour déléguer à une instance créée par `createCultureEngine`.
 
@@ -29,6 +29,10 @@ Les plans, scores, intentions complètes et fiches chargées ne figurent jamais 
 
 ## Cycle multi-tour
 
+Chaque tour conserve un état interne `{ turnId, userMessageId, phase, speakerResponseId, translatorResponseId }`. La phase progresse de `waiting-for-speaker` à `waiting-for-translator`, puis à `completed`. Cet état reste interne et ne modifie pas les contrats publics.
+
+Le `translator` n'est jamais disponible avant la réponse visible du `speaker`. Après cette réponse, son plan reçoit le texte source exact, sa langue, le message utilisateur et les informations déjà expliquées. Si son plan est rejeté ou différé, le tour devient `completed` et le moteur attend le prochain message utilisateur. Un `speaker` silencieux ne débloque pas automatiquement le `translator`.
+
 ```js
 const engine = createCultureEngine({ generator })
 const started = await engine.startCultureConversation(configuration)
@@ -38,6 +42,11 @@ await engine.generateCharacterResponse({
   characterId: 'solene-han',
 })
 
+await engine.generateCharacterResponse({
+  conversationId: started.conversationId,
+  characterId: 'sonia-nadir',
+})
+
 const next = await engine.addCultureUserMessage({
   conversationId: started.conversationId,
   message: 'Que signifie « fika » ?',
@@ -45,7 +54,7 @@ const next = await engine.addCultureUserMessage({
 
 await engine.generateCharacterResponse({
   conversationId: next.conversationId,
-  characterId: 'sonia-nadir',
+  characterId: 'solene-han',
 })
 ```
 

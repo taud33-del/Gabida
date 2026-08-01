@@ -29,7 +29,17 @@ function input(role = 'speaker') {
         { name: 'experience', content: { type: 'culture' } },
         { name: 'character', content: { centralSummary: 'Personnalite complete.', consistencyRules: ['Rester fidele.'] } },
         { name: 'conversation', content: { messages: [{ role: 'user', content: 'Bonjour' }] } },
-        { name: 'temporaryRole', content: { role, language: 'sv', userLanguage: 'fr' } },
+        { name: 'temporaryRole', content: {
+          role,
+          language: 'sv',
+          userLanguage: 'fr',
+          translationSource: role === 'translator' ? {
+            text: 'Vi börjar med fika.',
+            language: 'sv',
+            userMessage: 'On commence par quoi ?',
+            explainedInformation: [],
+          } : null,
+        } },
       ],
     },
   }
@@ -90,6 +100,16 @@ describe('generateur Culture de production', () => {
     const response = await createProductionCultureGenerator({ clientGeneration }).respond(input('translator'))
     expect(response.language).toBe('fr')
     expect(clientGeneration.generer.mock.calls[0][0].contenu).toMatch(/par defaut en fr/)
+    expect(clientGeneration.generer.mock.calls[0][0].contenu).toContain('Vi börjar med fika.')
+    expect(clientGeneration.generer.mock.calls[0][0].contenu).toMatch(/ne dois pas repondre directement/)
+  })
+
+  test('le plan du translator est limite a la reponse exacte du speaker', async () => {
+    const clientGeneration = clientReturning(validPlan)
+    await createProductionCultureGenerator({ clientGeneration }).plan(input('translator'))
+    const prompt = clientGeneration.generer.mock.calls[0][0].contenu
+    expect(prompt).toContain('Vi börjar med fika.')
+    expect(prompt).toMatch(/seconde reponse independante/)
   })
 
   test('rejette une langue contraire au role temporaire', async () => {
